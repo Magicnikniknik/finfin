@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"strings"
 	"time"
 
@@ -201,10 +202,44 @@ func validateResolvedAccounts(acc ResolvedAccounts) error {
 }
 
 func ensureReserveMatchesQuote(cmd ReserveOrderInput, q ResolvedQuote) error {
-	if normalize(cmd.OfficeID) != normalize(q.OfficeID) || normalize(cmd.Side) != normalize(q.Side) || normalize(cmd.GiveAmount) != normalize(q.AmountGive) || normalize(cmd.GetAmount) != normalize(q.AmountGet) || normalize(cmd.GiveCurrencyCode) != normalize(q.GiveCurrencyCode) || normalize(cmd.GiveCurrencyNetwork) != normalize(q.GiveCurrencyNetwork) || normalize(cmd.GetCurrencyCode) != normalize(q.GetCurrencyCode) || normalize(cmd.GetCurrencyNetwork) != normalize(q.GetCurrencyNetwork) {
-		return ErrQuoteMismatch
+	if normalize(cmd.OfficeID) != normalize(q.OfficeID) {
+		return fmt.Errorf("%w: office_id mismatch request=%q quote=%q", ErrQuoteMismatch, cmd.OfficeID, q.OfficeID)
+	}
+	if normalize(cmd.Side) != normalize(q.Side) {
+		return fmt.Errorf("%w: side mismatch request=%q quote=%q", ErrQuoteMismatch, cmd.Side, q.Side)
+	}
+	if !sameAmount(cmd.GiveAmount, q.AmountGive) {
+		return fmt.Errorf("%w: give.amount mismatch request=%q quote=%q", ErrQuoteMismatch, cmd.GiveAmount, q.AmountGive)
+	}
+	if !sameAmount(cmd.GetAmount, q.AmountGet) {
+		return fmt.Errorf("%w: get.amount mismatch request=%q quote=%q", ErrQuoteMismatch, cmd.GetAmount, q.AmountGet)
+	}
+	if normalize(cmd.GiveCurrencyCode) != normalize(q.GiveCurrencyCode) {
+		return fmt.Errorf("%w: give.currency.code mismatch request=%q quote=%q", ErrQuoteMismatch, cmd.GiveCurrencyCode, q.GiveCurrencyCode)
+	}
+	if normalize(cmd.GiveCurrencyNetwork) != normalize(q.GiveCurrencyNetwork) {
+		return fmt.Errorf("%w: give.currency.network mismatch request=%q quote=%q", ErrQuoteMismatch, cmd.GiveCurrencyNetwork, q.GiveCurrencyNetwork)
+	}
+	if normalize(cmd.GetCurrencyCode) != normalize(q.GetCurrencyCode) {
+		return fmt.Errorf("%w: get.currency.code mismatch request=%q quote=%q", ErrQuoteMismatch, cmd.GetCurrencyCode, q.GetCurrencyCode)
+	}
+	if normalize(cmd.GetCurrencyNetwork) != normalize(q.GetCurrencyNetwork) {
+		return fmt.Errorf("%w: get.currency.network mismatch request=%q quote=%q", ErrQuoteMismatch, cmd.GetCurrencyNetwork, q.GetCurrencyNetwork)
 	}
 	return nil
+}
+
+func sameAmount(a, b string) bool {
+	a = strings.TrimSpace(a)
+	b = strings.TrimSpace(b)
+
+	ra, oka := new(big.Rat).SetString(a)
+	rb, okb := new(big.Rat).SetString(b)
+	if oka && okb {
+		return ra.Cmp(rb) == 0
+	}
+
+	return normalize(a) == normalize(b)
 }
 
 func normalizedQuotePayload(q ResolvedQuote) json.RawMessage {

@@ -104,10 +104,12 @@ function renderLocalError(message) {
 }
 
 async function safeJson(resp) {
+  const raw = await resp.text();
+  if (!raw) return {};
   try {
-    return await resp.json();
+    return JSON.parse(raw);
   } catch {
-    return { raw: await resp.text() };
+    return { raw };
   }
 }
 

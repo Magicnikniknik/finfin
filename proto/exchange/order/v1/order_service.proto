@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package exchange.order.v1;
+
+option go_package = "finfin/gen/exchange/order/v1;orderv1";
+
+message Currency {
+  string code = 1;
+  string network = 2;
+}
+
+message Money {
+  string amount = 1;
+  Currency currency = 2;
+}
+
+enum OrderSide {
+  ORDER_SIDE_UNSPECIFIED = 0;
+  BUY = 1;
+  SELL = 2;
+}
+
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  NEW = 1;
+  RESERVED = 2;
+  COMPLETED = 3;
+  EXPIRED = 4;
+  CANCELLED = 5;
+}
+
+message ReserveOrderRequest {
+  string idempotency_key = 1;
+  string office_id = 2;
+  string quote_id = 3;
+  OrderSide side = 4;
+  Money give = 5;
+  Money get = 6;
+}
+
+message ReserveOrderResponse {
+  string order_id = 1;
+  OrderStatus status = 2;
+  int64 expires_at_ts = 3;
+  int64 version = 4;
+}
+
+message CompleteOrderRequest {
+  string order_id = 1;
+  int64 expected_version = 2;
+  string idempotency_key = 3;
+  string cashier_id = 4;
+}
+
+message CompleteOrderResponse {
+  string order_id = 1;
+  OrderStatus status = 2;
+  int64 completed_at_ts = 3;
+  int64 version = 4;
+}
+
+message CancelOrderRequest {
+  string order_id = 1;
+  int64 expected_version = 2;
+  string idempotency_key = 3;
+  string reason = 4;
+}
+
+message CancelOrderResponse {
+  string order_id = 1;
+  OrderStatus status = 2;
+  int64 version = 3;
+}
+
+service OrderService {
+  rpc ReserveOrder(ReserveOrderRequest) returns (ReserveOrderResponse);
+  rpc CompleteOrder(CompleteOrderRequest) returns (CompleteOrderResponse);
+  rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
+}

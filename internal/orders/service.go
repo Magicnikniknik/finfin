@@ -254,6 +254,9 @@ func (s *Service) CompleteOrder(ctx context.Context, cmd CompleteOrderCommand) (
 		return CompleteOrderResult{}, err
 	}
 	if ord.Status != "reserved" {
+		if ord.Status == "completed" || ord.Status == "cancelled" || ord.Status == "expired" {
+			return CompleteOrderResult{}, ErrVersionConflict
+		}
 		return CompleteOrderResult{}, ErrOrderNotActive
 	}
 	if ord.HoldStatus != "active" {

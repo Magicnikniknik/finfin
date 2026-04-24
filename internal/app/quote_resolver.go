@@ -108,7 +108,7 @@ LIMIT 1
 
 	out.QuoteID = strings.TrimSpace(out.QuoteID)
 	out.OfficeID = strings.TrimSpace(officeID)
-	out.Side = normalizeSide(out.Side)
+        out.Side = normalize(out.Side)
 	out.GiveCurrencyID = strings.TrimSpace(out.GiveCurrencyID)
 	out.GiveCurrencyCode = strings.TrimSpace(out.GiveCurrencyCode)
 	out.GiveCurrencyNetwork = strings.TrimSpace(out.GiveCurrencyNetwork)

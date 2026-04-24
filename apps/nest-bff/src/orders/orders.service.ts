@@ -39,9 +39,18 @@ export class OrdersService implements OnModuleInit {
   ): Promise<ReserveOrderResponse> {
     const metadata = buildMetadata(tenantId, clientRef);
 
+    const grpcPayload = {
+      idempotencyKey: payload.idempotency_key,
+      officeId: payload.office_id,
+      quoteId: payload.quote_id,
+      side: payload.side,
+      give: payload.give,
+      get: payload.get,
+    };
+
     try {
       return await lastValueFrom(
-        this.ordersGrpc.ReserveOrder(payload, metadata),
+        this.ordersGrpc.ReserveOrder(grpcPayload as any, metadata),
       );
     } catch (error) {
       mapGrpcErrorToHttp(error);
@@ -55,9 +64,16 @@ export class OrdersService implements OnModuleInit {
   ): Promise<CompleteOrderResponse> {
     const metadata = buildMetadata(tenantId, clientRef);
 
+    const grpcPayload = {
+      orderId: payload.order_id,
+      expectedVersion: payload.expected_version,
+      idempotencyKey: payload.idempotency_key,
+      cashierId: payload.cashier_id,
+    };
+
     try {
       return await lastValueFrom(
-        this.ordersGrpc.CompleteOrder(payload, metadata),
+        this.ordersGrpc.CompleteOrder(grpcPayload as any, metadata),
       );
     } catch (error) {
       mapGrpcErrorToHttp(error);
@@ -71,9 +87,16 @@ export class OrdersService implements OnModuleInit {
   ): Promise<CancelOrderResponse> {
     const metadata = buildMetadata(tenantId, clientRef);
 
+    const grpcPayload = {
+      orderId: payload.order_id,
+      expectedVersion: payload.expected_version,
+      idempotencyKey: payload.idempotency_key,
+      reason: payload.reason,
+    };
+
     try {
       return await lastValueFrom(
-        this.ordersGrpc.CancelOrder(payload, metadata),
+        this.ordersGrpc.CancelOrder(grpcPayload as any, metadata),
       );
     } catch (error) {
       mapGrpcErrorToHttp(error);

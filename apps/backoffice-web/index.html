@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FinFin Backoffice Test UI</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Backoffice Test UI</h1>
+      <p>Manual smoke console for Nest BFF order endpoints.</p>
+    </header>
+
+    <section class="config card">
+      <h2>Connection</h2>
+      <div class="grid two">
+        <label>
+          BFF base URL
+          <input id="baseUrl" value="http://localhost:3000" />
+        </label>
+        <label>
+          tenant_id
+          <input id="tenantId" placeholder="11111111-1111-1111-1111-111111111111" />
+        </label>
+      </div>
+      <div class="grid two">
+        <label>
+          client_ref
+          <input id="clientRef" placeholder="client_smoke_001" />
+        </label>
+      </div>
+    </section>
+
+    <main>
+      <section class="forms">
+        <article class="card">
+          <h2>ReserveOrder</h2>
+          <form id="reserveForm">
+            <div class="grid two">
+              <label>idempotency_key <input name="idempotency_key" value="idem-reserve-001" required /></label>
+              <label>side
+                <select name="side">
+                  <option value="BUY">BUY</option>
+                  <option value="SELL">SELL</option>
+                </select>
+              </label>
+              <label>office_id <input name="office_id" value="office-001" required /></label>
+              <label>quote_id <input name="quote_id" value="quote-001" required /></label>
+            </div>
+            <div class="money-grid">
+              <fieldset>
+                <legend>give</legend>
+                <label>amount <input name="give_amount" value="100.00" required /></label>
+                <label>currency.code <input name="give_code" value="USDT" required /></label>
+                <label>currency.network <input name="give_network" value="TRC20" required /></label>
+              </fieldset>
+              <fieldset>
+                <legend>get</legend>
+                <label>amount <input name="get_amount" value="3550.00" required /></label>
+                <label>currency.code <input name="get_code" value="THB" required /></label>
+                <label>currency.network <input name="get_network" value="cash" required /></label>
+              </fieldset>
+            </div>
+            <button type="submit">Reserve</button>
+          </form>
+        </article>
+
+        <article class="card">
+          <h2>CompleteOrder</h2>
+          <form id="completeForm" class="grid one">
+            <label>idempotency_key <input name="idempotency_key" value="idem-complete-001" required /></label>
+            <label>order_id <input name="order_id" placeholder="order-id-from-reserve" required /></label>
+            <label>expected_version <input name="expected_version" type="number" value="1" min="0" required /></label>
+            <label>cashier_id <input name="cashier_id" value="cashier-01" required /></label>
+            <button type="submit">Complete</button>
+          </form>
+        </article>
+
+        <article class="card">
+          <h2>CancelOrder</h2>
+          <form id="cancelForm" class="grid one">
+            <label>idempotency_key <input name="idempotency_key" value="idem-cancel-001" required /></label>
+            <label>order_id <input name="order_id" placeholder="order-id-from-reserve" required /></label>
+            <label>expected_version <input name="expected_version" type="number" value="1" min="0" required /></label>
+            <label>reason <input name="reason" value="manual_cancel" required /></label>
+            <button type="submit">Cancel</button>
+          </form>
+        </article>
+      </section>
+
+      <aside class="response card">
+        <h2>Response</h2>
+        <p id="statusBadge" class="status idle">idle</p>
+        <pre id="responseJson">{ "message": "Send a request to see JSON response" }</pre>
+      </aside>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

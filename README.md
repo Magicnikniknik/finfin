@@ -17,6 +17,8 @@ migrate:
 	@test -n "$$DATABASE_URL" || (echo "DATABASE_URL is required" && exit 1)
 	psql "$$DATABASE_URL" -f migrations/0001_core_schema.sql
 	psql "$$DATABASE_URL" -f migrations/0002_quote_snapshots.sql
+	psql "$$DATABASE_URL" -f migrations/0003_account_wiring.sql
+	psql "$$DATABASE_URL" -f migrations/0004_pricing_engine.sql
 
 proto:
 	@command -v protoc >/dev/null 2>&1 || (echo "protoc is required" && exit 1)
@@ -105,6 +107,8 @@ Pragmatic B2B white-label exchange platform blueprint with a working Go money-co
    ```bash
    psql "$DATABASE_URL" -f migrations/0001_core_schema.sql
    psql "$DATABASE_URL" -f migrations/0002_quote_snapshots.sql
+   psql "$DATABASE_URL" -f migrations/0003_account_wiring.sql
+   psql "$DATABASE_URL" -f migrations/0004_pricing_engine.sql
    ```
 4. Download dependencies:
    ```bash
@@ -137,8 +141,12 @@ Pragmatic B2B white-label exchange platform blueprint with a working Go money-co
 
 ## Protobuf workflow
 
-- Source of truth: `proto/exchange/order/v1/order_service.proto`
-- Generated Go stubs path: `gen/exchange/order/v1`
+- Source of truth:
+  - `proto/exchange/order/v1/order_service.proto`
+  - `proto/exchange/pricing/v1/pricing_service.proto`
+- Generated Go stubs path:
+  - `gen/exchange/order/v1`
+  - `gen/exchange/pricing/v1`
 - Regenerate:
   ```bash
   make proto
@@ -154,16 +162,20 @@ Pragmatic B2B white-label exchange platform blueprint with a working Go money-co
   - post-call DB validation queries
 - Use `docs/sql_seed_checklist.md` for DB seed scripts to prepare:
   - quick reserved orders for `CompleteOrder`/`CancelOrder` smoke
-  - full wiring + quote snapshot for `ReserveOrder` smoke
+  - full wiring + canonical `core.quotes` seed for `ReserveOrder` smoke
   - unified post-action SQL snapshots (full and operator-short variants)
 - Executable SQL files are in `scripts/smoke/`:
-  - `seed_fast.sql`, `seed_reserve.sql`, `reset.sql`
+  - `seed_demo.sql`, `seed_fast.sql`, `seed_reserve.sql`, `reset.sql`
   - `check_short.sql`, `check_full.sql`
 - grpcurl wrappers are in `scripts/smoke/`:
   - `reserve.sh`, `complete.sh`, `cancel.sh`
   - shared defaults loader: `common.sh`
   - sample env file: `env.example` (copy to `.env`)
 - Handy targets:
+  - `make smoke-seed-pricing`
+  - `make smoke-seed-demo`
+  - `make smoke-bootstrap`
+  - `make smoke-full-cycle`
   - `make smoke-seed-fast`
   - `make smoke-seed-reserve`
   - `make smoke-check-short`
@@ -179,6 +191,7 @@ Pragmatic B2B white-label exchange platform blueprint with a working Go money-co
 - Dependency checks:
   - grpc wrappers fail fast with a clear message if `grpcurl` is missing
   - SQL smoke targets fail fast with a clear message if `psql` is missing
+- For a production-like sandbox plan and scenario pack, see `docs/production_like_sandbox_mvp.md`.
 
 ## Product phases
 
@@ -262,3 +275,63 @@ Then:
 - go back to the PR
 - click “Merge pull request”
 - click “Confirm merge”
+
+
+## Docs
+
+- [Pricing-first execution plan](docs/pricing_first_execution_plan.md)
+- [Pricing PR#1 review template](docs/pricing_pr1_review_template.md)
+- Pricing transport is available via gRPC `PricingService/CalculateQuote` and Nest BFF `POST /quotes/calculate`.
+
+## Auth foundation (PR1)
+
+- New migration: `migrations/0006_auth_schema.sql` (`auth.users`, `auth.refresh_tokens`).
+- `make migrate` and `scripts/smoke/bootstrap.sh` now apply auth schema migration.
+- Copy env defaults: `cp .env.example .env`.
+- Seed owner user (uses `ADMIN_BOOTSTRAP_*` vars from `.env.example`):
+
+```bash
+export $(grep -v '^#' .env.example | xargs)
+./scripts/bootstrap_admin.sh
+```
+
+- Login/refresh via Nest BFF:
+
+```bash
+curl -X POST http://localhost:3000/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"tenant_id":"11111111-1111-1111-1111-111111111111","login":"owner_demo","password":"owner_demo_password"}'
+
+curl -X POST http://localhost:3000/auth/refresh \
+  -H 'content-type: application/json' \
+  -d '{"refresh_token":"<token>"}'
+```
+
+## Ops layer (PR3): audit + shifts
+
+- New migration: `migrations/0007_audit_logs.sql` for `audit.audit_logs`.
+- New BFF shift endpoints:
+  - `POST /shifts/open`
+  - `POST /shifts/close`
+  - `GET /shifts/current`
+- Cashier shift gate is enforced in BFF for `POST /orders/complete` and `POST /orders/cancel`.
+- Audit events are recorded for:
+  - `login`
+  - `quote_calculate`
+  - `reserve`
+  - `complete`
+  - `cancel`
+  - `open_shift`
+  - `close_shift`
+
+## Pilot install
+
+```bash
+cp .env.example .env
+make pilot-up
+make pilot-bootstrap
+```
+
+Then run the checklist in `docs/PILOT_ACCEPTANCE_CHECKLIST.md`.
+
+> Follow-up note: shifts are currently tracked in-memory in BFF thin slice. Before real pilot rollout, shift state checks should be backed by DB source-of-truth.

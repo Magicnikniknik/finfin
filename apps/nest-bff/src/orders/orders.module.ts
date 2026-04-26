@@ -2,11 +2,16 @@ import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { join } from 'path';
 
+import { AuditModule } from '../audit/audit.module';
+import { OperatorPolicyService } from '../common/policies/operator-policy.service';
+import { ShiftsModule } from '../shifts/shifts.module';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 
 @Module({
   imports: [
+    AuditModule,
+    ShiftsModule,
     ClientsModule.register([
       {
         name: 'ORDER_PACKAGE',
@@ -29,7 +34,7 @@ import { OrdersService } from './orders.service';
     ]),
   ],
   controllers: [OrdersController],
-  providers: [OrdersService],
+  providers: [OrdersService, OperatorPolicyService],
   exports: [OrdersService],
 })
 export class OrdersModule {}

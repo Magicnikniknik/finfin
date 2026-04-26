@@ -71,3 +71,19 @@ curl -X POST http://localhost:3000/orders/reserve \
 ```
 
 See also: `apps/nest-bff/FIRST_LIVE_SMOKE_CHECKLIST.md`.
+
+## Auth endpoints
+
+The BFF now exposes:
+
+- `POST /auth/login`
+- `POST /auth/refresh`
+- `GET /auth/me` (Bearer access token)
+
+Required env vars:
+
+- `DATABASE_URL`
+- `JWT_ACCESS_SECRET`
+- `JWT_REFRESH_SECRET`
+- `JWT_ACCESS_TTL` (default `15m`)
+- `JWT_REFRESH_TTL` (default `30d`)

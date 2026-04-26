@@ -2,7 +2,6 @@ package orders
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"testing"
@@ -32,32 +31,22 @@ func TestCompleteOrder_VersionConflict(t *testing.T) {
 	seedAccount(t, ctx, pool, balanceAccountID, tenantID, officeID, holdCurrencyID, "balance")
 	seedAccount(t, ctx, pool, availableLedgerAccountID, tenantID, officeID, holdCurrencyID, "available_ledger")
 	seedAccount(t, ctx, pool, reservedLedgerAccountID, tenantID, officeID, holdCurrencyID, "reserved_ledger")
+	seedAccountWiring(t, ctx, pool, tenantID, officeID, holdCurrencyID, balanceAccountID, availableLedgerAccountID, reservedLedgerAccountID, nil)
 	seedAccount(t, ctx, pool, settlementLedgerAccountID, tenantID, officeID, holdCurrencyID, "settlement")
+	seedAccountWiring(t, ctx, pool, tenantID, officeID, holdCurrencyID, balanceAccountID, availableLedgerAccountID, reservedLedgerAccountID, &settlementLedgerAccountID)
 
 	seedBalance(t, ctx, pool, balanceAccountID, tenantID, holdCurrencyID, "1000.000000000000000000", "0")
 
 	svc := NewService(pool, slog.Default(), RealJournalPoster{})
 
+	seedCanonicalQuote(t, ctx, pool, "quote_occ_001", tenantID, officeID, "sell", giveCurrencyID, getCurrencyID, "100.000000000000000000", "3550.000000000000000000", "35.500000000000000000", time.Now().UTC().Add(10*time.Minute).Truncate(time.Second), "active")
+
 	reserveCmd := ReserveOrderCommand{
-		TenantID:                  tenantID,
-		ClientRef:                 clientRef,
-		IdempotencyKey:            uuid.NewString(),
-		OfficeID:                  officeID,
-		QuoteID:                   "quote_occ_001",
-		Side:                      "buy",
-		GiveCurrencyID:            giveCurrencyID,
-		GetCurrencyID:             getCurrencyID,
-		AmountGive:                "100.000000000000000000",
-		AmountGet:                 "3550.000000000000000000",
-		FixedRate:                 "35.500000000000000000",
-		HoldCurrencyID:            holdCurrencyID,
-		HoldAmount:                "100.000000000000000000",
-		BalanceAccountID:          balanceAccountID,
-		AvailableLedgerAccountID:  availableLedgerAccountID,
-		ReservedLedgerAccountID:   reservedLedgerAccountID,
-		SettlementLedgerAccountID: &settlementLedgerAccountID,
-		QuotePayload:              json.RawMessage(`{"source":"occ-test"}`),
-		ExpiresAt:                 time.Now().UTC().Add(10 * time.Minute).Truncate(time.Second),
+		TenantID:       tenantID,
+		ClientRef:      clientRef,
+		IdempotencyKey: uuid.NewString(),
+		OfficeID:       officeID,
+		QuoteID:        "quote_occ_001",
 	}
 
 	resReserve, err := svc.ReserveOrder(ctx, reserveCmd)
@@ -75,6 +64,7 @@ func TestCompleteOrder_VersionConflict(t *testing.T) {
 		IdempotencyKey:  uuid.NewString(),
 		CashierID:       "cashier_1",
 	}
+	seedOpenShift(t, ctx, pool, tenantID, officeID, "cashier_1")
 
 	resCompleteA, err := svc.CompleteOrder(ctx, completeCmdA)
 	if err != nil {

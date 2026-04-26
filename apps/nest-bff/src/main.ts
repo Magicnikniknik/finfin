@@ -10,7 +10,7 @@ async function bootstrap() {
   app.enableCors({
     origin: ['http://localhost:4173', 'http://127.0.0.1:4173'],
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'x-tenant-id', 'x-client-ref'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id', 'x-client-ref'],
     credentials: false,
   });
 

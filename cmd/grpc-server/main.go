@@ -9,9 +9,11 @@ import (
 	"syscall"
 
 	orderv1 "finfin/gen/exchange/order/v1"
+	pricingv1 "finfin/gen/exchange/pricing/v1"
 	"finfin/internal/app"
 	grpcserver "finfin/internal/grpc"
 	"finfin/internal/orders"
+	"finfin/internal/pricing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
@@ -76,6 +78,8 @@ func main() {
 	accountResolver := app.NewSQLAccountResolver(pool, logger)
 	orderApp := app.NewOrderApp(domainSvc, quoteResolver, accountResolver, logger)
 	adapter := &orderApplicationAdapter{app: orderApp}
+	pricingRepo := pricing.NewSQLRepository(pool)
+	pricingSvc := pricing.NewService(pricingRepo, nil)
 
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -85,6 +89,7 @@ func main() {
 
 	grpcSrv := grpc.NewServer()
 	orderv1.RegisterOrderServiceServer(grpcSrv, grpcserver.NewOrderServer(adapter))
+	pricingv1.RegisterPricingServiceServer(grpcSrv, grpcserver.NewPricingServer(pricingSvc))
 	reflection.Register(grpcSrv)
 
 	go func() {

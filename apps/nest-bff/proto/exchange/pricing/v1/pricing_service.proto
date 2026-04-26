@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package exchange.pricing.v1;
+
+option go_package = "finfin/gen/exchange/pricing/v1;pricingv1";
+
+enum QuoteInputMode {
+  QUOTE_INPUT_MODE_UNSPECIFIED = 0;
+  GIVE = 1;
+  GET = 2;
+}
+
+enum QuoteSide {
+  QUOTE_SIDE_UNSPECIFIED = 0;
+  BUY = 1;
+  SELL = 2;
+}
+
+message QuoteMoney {
+  string amount = 1;
+  string currency_id = 2;
+}
+
+message CalculateQuoteRequest {
+  string office_id = 1;
+  string give_currency_id = 2;
+  string get_currency_id = 3;
+  QuoteInputMode input_mode = 4;
+  string amount = 5;
+}
+
+message CalculateQuoteResponse {
+  string quote_id = 1;
+  QuoteSide side = 2;
+  QuoteMoney give = 3;
+  QuoteMoney get = 4;
+  string fixed_rate = 5;
+  string base_rate = 6;
+  string fee_amount = 7;
+  int64 expires_at_ts = 8;
+  string source_name = 9;
+}
+
+service PricingService {
+  rpc CalculateQuote(CalculateQuoteRequest) returns (CalculateQuoteResponse);
+}

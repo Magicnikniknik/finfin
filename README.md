@@ -334,6 +334,12 @@ export PILOT_DATABASE_URL=postgres://postgres:postgres@localhost:5432/finfin?ssl
 make pilot-bootstrap
 ```
 
+Open:
+- Backoffice UI: `http://localhost:4173`
+- BFF API: `http://localhost:3000` (`/healthz` for quick check)
+
+For step-by-step verification of working scenarios (health/auth/pricing/orders), see `docs/INSTALL.md`.
+
 Then run the checklist in `docs/PILOT_ACCEPTANCE_CHECKLIST.md`.
 
 > Follow-up note: shifts are currently tracked in-memory in BFF thin slice. Before real pilot rollout, shift state checks should be backed by DB source-of-truth.

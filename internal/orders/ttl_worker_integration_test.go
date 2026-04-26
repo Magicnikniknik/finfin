@@ -2,7 +2,6 @@ package orders
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"testing"
 	"time"
@@ -30,31 +29,20 @@ func TestTTLWorker_ExpiresReservedOrder(t *testing.T) {
 	seedAccount(t, ctx, pool, balanceAccountID, tenantID, officeID, holdCurrencyID, "balance")
 	seedAccount(t, ctx, pool, availableLedgerAccountID, tenantID, officeID, holdCurrencyID, "available_ledger")
 	seedAccount(t, ctx, pool, reservedLedgerAccountID, tenantID, officeID, holdCurrencyID, "reserved_ledger")
+	seedAccountWiring(t, ctx, pool, tenantID, officeID, holdCurrencyID, balanceAccountID, availableLedgerAccountID, reservedLedgerAccountID, nil)
 
 	seedBalance(t, ctx, pool, balanceAccountID, tenantID, holdCurrencyID, "1000.000000000000000000", "0")
 
 	svc := NewService(pool, slog.Default(), RealJournalPoster{})
 
+	seedCanonicalQuote(t, ctx, pool, "quote_ttl_001", tenantID, officeID, "sell", giveCurrencyID, getCurrencyID, "100.000000000000000000", "3550.000000000000000000", "35.500000000000000000", time.Now().UTC().Add(-5*time.Second), "active")
+
 	reserveCmd := ReserveOrderCommand{
-		TenantID:                  tenantID,
-		ClientRef:                 clientRef,
-		IdempotencyKey:            uuid.NewString(),
-		OfficeID:                  officeID,
-		QuoteID:                   "quote_ttl_001",
-		Side:                      "buy",
-		GiveCurrencyID:            giveCurrencyID,
-		GetCurrencyID:             getCurrencyID,
-		AmountGive:                "100.000000000000000000",
-		AmountGet:                 "3550.000000000000000000",
-		FixedRate:                 "35.500000000000000000",
-		HoldCurrencyID:            holdCurrencyID,
-		HoldAmount:                "100.000000000000000000",
-		BalanceAccountID:          balanceAccountID,
-		AvailableLedgerAccountID:  availableLedgerAccountID,
-		ReservedLedgerAccountID:   reservedLedgerAccountID,
-		SettlementLedgerAccountID: nil,
-		QuotePayload:              json.RawMessage(`{"source":"ttl-test"}`),
-		ExpiresAt:                 time.Now().UTC().Add(-5 * time.Second),
+		TenantID:       tenantID,
+		ClientRef:      clientRef,
+		IdempotencyKey: uuid.NewString(),
+		OfficeID:       officeID,
+		QuoteID:        "quote_ttl_001",
 	}
 
 	reserveRes, err := svc.ReserveOrder(ctx, reserveCmd)

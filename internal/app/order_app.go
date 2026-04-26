@@ -2,11 +2,9 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
-	"math/big"
 	"strings"
 	"time"
 
@@ -16,7 +14,6 @@ import (
 var (
 	ErrQuoteNotFound         = errors.New("quote not found")
 	ErrQuoteExpired          = errors.New("quote expired")
-	ErrQuoteMismatch         = errors.New("reserve request does not match resolved quote")
 	ErrAccountWiringNotFound = errors.New("account wiring not found")
 )
 
@@ -106,59 +103,17 @@ func (a *OrderApp) ReserveOrder(ctx context.Context, cmd ReserveOrderInput) (ord
 	if a.orders == nil {
 		return orders.ReserveOrderResult{}, fmt.Errorf("orders service is nil")
 	}
-	if a.quotes == nil {
-		return orders.ReserveOrderResult{}, fmt.Errorf("quote resolver is nil")
-	}
-	if a.accounts == nil {
-		return orders.ReserveOrderResult{}, fmt.Errorf("account resolver is nil")
-	}
 
 	if err := validateReserveCommand(cmd); err != nil {
 		return orders.ReserveOrderResult{}, err
 	}
 
-	resolvedQuote, err := a.quotes.ResolveQuoteForReserve(ctx, QuoteResolveRequest{TenantID: strings.TrimSpace(cmd.TenantID), OfficeID: strings.TrimSpace(cmd.OfficeID), QuoteID: strings.TrimSpace(cmd.QuoteID)})
-	if err != nil {
-		return orders.ReserveOrderResult{}, err
-	}
-	if strings.TrimSpace(resolvedQuote.QuoteID) == "" {
-		return orders.ReserveOrderResult{}, ErrQuoteNotFound
-	}
-	if !resolvedQuote.ExpiresAt.After(a.now()) {
-		return orders.ReserveOrderResult{}, ErrQuoteExpired
-	}
-	if err := ensureReserveMatchesQuote(cmd, resolvedQuote); err != nil {
-		return orders.ReserveOrderResult{}, err
-	}
-
-	resolvedAccounts, err := a.accounts.ResolveAccountsForReserve(ctx, AccountResolveRequest{TenantID: strings.TrimSpace(cmd.TenantID), OfficeID: strings.TrimSpace(cmd.OfficeID), HoldCurrencyID: strings.TrimSpace(resolvedQuote.HoldCurrencyID)})
-	if err != nil {
-		return orders.ReserveOrderResult{}, err
-	}
-	if err := validateResolvedAccounts(resolvedAccounts); err != nil {
-		return orders.ReserveOrderResult{}, err
-	}
-
 	domainCmd := orders.ReserveOrderCommand{
-		TenantID:                  strings.TrimSpace(cmd.TenantID),
-		ClientRef:                 strings.TrimSpace(cmd.ClientRef),
-		IdempotencyKey:            strings.TrimSpace(cmd.IdempotencyKey),
-		OfficeID:                  strings.TrimSpace(cmd.OfficeID),
-		QuoteID:                   strings.TrimSpace(cmd.QuoteID),
-		Side:                      strings.TrimSpace(resolvedQuote.Side),
-		GiveCurrencyID:            strings.TrimSpace(resolvedQuote.GiveCurrencyID),
-		GetCurrencyID:             strings.TrimSpace(resolvedQuote.GetCurrencyID),
-		AmountGive:                strings.TrimSpace(resolvedQuote.AmountGive),
-		AmountGet:                 strings.TrimSpace(resolvedQuote.AmountGet),
-		FixedRate:                 strings.TrimSpace(resolvedQuote.FixedRate),
-		HoldCurrencyID:            strings.TrimSpace(resolvedQuote.HoldCurrencyID),
-		HoldAmount:                strings.TrimSpace(resolvedQuote.HoldAmount),
-		BalanceAccountID:          strings.TrimSpace(resolvedAccounts.BalanceAccountID),
-		AvailableLedgerAccountID:  strings.TrimSpace(resolvedAccounts.AvailableLedgerAccountID),
-		ReservedLedgerAccountID:   strings.TrimSpace(resolvedAccounts.ReservedLedgerAccountID),
-		SettlementLedgerAccountID: resolvedAccounts.SettlementLedgerAccountID,
-		QuotePayload:              normalizedQuotePayload(resolvedQuote),
-		ExpiresAt:                 resolvedQuote.ExpiresAt.UTC(),
+		TenantID:       strings.TrimSpace(cmd.TenantID),
+		ClientRef:      strings.TrimSpace(cmd.ClientRef),
+		IdempotencyKey: strings.TrimSpace(cmd.IdempotencyKey),
+		OfficeID:       strings.TrimSpace(cmd.OfficeID),
+		QuoteID:        strings.TrimSpace(cmd.QuoteID),
 	}
 
 	return a.orders.ReserveOrder(ctx, domainCmd)
@@ -179,84 +134,8 @@ func (a *OrderApp) CancelOrder(ctx context.Context, cmd orders.CancelOrderComman
 }
 
 func validateReserveCommand(cmd ReserveOrderInput) error {
-	if strings.TrimSpace(cmd.TenantID) == "" || strings.TrimSpace(cmd.ClientRef) == "" || strings.TrimSpace(cmd.IdempotencyKey) == "" || strings.TrimSpace(cmd.OfficeID) == "" || strings.TrimSpace(cmd.QuoteID) == "" || strings.TrimSpace(cmd.Side) == "" {
+	if strings.TrimSpace(cmd.TenantID) == "" || strings.TrimSpace(cmd.ClientRef) == "" || strings.TrimSpace(cmd.IdempotencyKey) == "" || strings.TrimSpace(cmd.OfficeID) == "" || strings.TrimSpace(cmd.QuoteID) == "" {
 		return fmt.Errorf("%w: required fields are missing", orders.ErrInvalidAmount)
 	}
-	if strings.TrimSpace(cmd.GiveAmount) == "" || strings.TrimSpace(cmd.GetAmount) == "" || strings.TrimSpace(cmd.GiveCurrencyCode) == "" || strings.TrimSpace(cmd.GetCurrencyCode) == "" {
-		return fmt.Errorf("%w: amount/currency fields are required", orders.ErrInvalidAmount)
-	}
 	return nil
 }
-
-func validateResolvedAccounts(acc ResolvedAccounts) error {
-	switch {
-	case strings.TrimSpace(acc.BalanceAccountID) == "":
-		return ErrAccountWiringNotFound
-	case strings.TrimSpace(acc.AvailableLedgerAccountID) == "":
-		return ErrAccountWiringNotFound
-	case strings.TrimSpace(acc.ReservedLedgerAccountID) == "":
-		return ErrAccountWiringNotFound
-	default:
-		return nil
-	}
-}
-
-func ensureReserveMatchesQuote(cmd ReserveOrderInput, q ResolvedQuote) error {
-	if normalize(cmd.OfficeID) != normalize(q.OfficeID) {
-		return fmt.Errorf("%w: office_id mismatch request=%q quote=%q", ErrQuoteMismatch, cmd.OfficeID, q.OfficeID)
-	}
-	if normalize(cmd.Side) != normalize(q.Side) {
-		return fmt.Errorf("%w: side mismatch request=%q quote=%q", ErrQuoteMismatch, cmd.Side, q.Side)
-	}
-	if !sameAmount(cmd.GiveAmount, q.AmountGive) {
-		return fmt.Errorf("%w: give.amount mismatch request=%q quote=%q", ErrQuoteMismatch, cmd.GiveAmount, q.AmountGive)
-	}
-	if !sameAmount(cmd.GetAmount, q.AmountGet) {
-		return fmt.Errorf("%w: get.amount mismatch request=%q quote=%q", ErrQuoteMismatch, cmd.GetAmount, q.AmountGet)
-	}
-	if normalize(cmd.GiveCurrencyCode) != normalize(q.GiveCurrencyCode) {
-		return fmt.Errorf("%w: give.currency.code mismatch request=%q quote=%q", ErrQuoteMismatch, cmd.GiveCurrencyCode, q.GiveCurrencyCode)
-	}
-	if normalize(cmd.GiveCurrencyNetwork) != normalize(q.GiveCurrencyNetwork) {
-		return fmt.Errorf("%w: give.currency.network mismatch request=%q quote=%q", ErrQuoteMismatch, cmd.GiveCurrencyNetwork, q.GiveCurrencyNetwork)
-	}
-	if normalize(cmd.GetCurrencyCode) != normalize(q.GetCurrencyCode) {
-		return fmt.Errorf("%w: get.currency.code mismatch request=%q quote=%q", ErrQuoteMismatch, cmd.GetCurrencyCode, q.GetCurrencyCode)
-	}
-	if normalize(cmd.GetCurrencyNetwork) != normalize(q.GetCurrencyNetwork) {
-		return fmt.Errorf("%w: get.currency.network mismatch request=%q quote=%q", ErrQuoteMismatch, cmd.GetCurrencyNetwork, q.GetCurrencyNetwork)
-	}
-	return nil
-}
-
-func sameAmount(a, b string) bool {
-	a = strings.TrimSpace(a)
-	b = strings.TrimSpace(b)
-
-	ra, oka := new(big.Rat).SetString(a)
-	rb, okb := new(big.Rat).SetString(b)
-	if oka && okb {
-		return ra.Cmp(rb) == 0
-	}
-
-	return normalize(a) == normalize(b)
-}
-
-func normalizedQuotePayload(q ResolvedQuote) json.RawMessage {
-	if len(q.Payload) > 0 {
-		return q.Payload
-	}
-	payload, _ := json.Marshal(map[string]any{
-		"quote_id":   q.QuoteID,
-		"office_id":  q.OfficeID,
-		"side":       q.Side,
-		"expires_at": q.ExpiresAt.UTC().Format(time.RFC3339),
-		"give":       map[string]any{"amount": q.AmountGive, "currency_id": q.GiveCurrencyID, "code": q.GiveCurrencyCode, "network": q.GiveCurrencyNetwork},
-		"get":        map[string]any{"amount": q.AmountGet, "currency_id": q.GetCurrencyID, "code": q.GetCurrencyCode, "network": q.GetCurrencyNetwork},
-		"fixed_rate": q.FixedRate,
-		"hold":       map[string]any{"currency_id": q.HoldCurrencyID, "amount": q.HoldAmount},
-	})
-	return payload
-}
-
-func normalize(s string) string { return strings.TrimSpace(strings.ToLower(s)) }

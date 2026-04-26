@@ -20,6 +20,7 @@ make pilot-up
 set -a
 source .env
 set +a
+export PILOT_DATABASE_URL=postgres://postgres:postgres@localhost:5432/finfin?sslmode=disable
 make pilot-bootstrap
 ```
 

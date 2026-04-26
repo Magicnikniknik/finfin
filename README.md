@@ -330,6 +330,7 @@ curl -X POST http://localhost:3000/auth/refresh \
 cp .env.example .env
 make pilot-up
 set -a && source .env && set +a
+export PILOT_DATABASE_URL=postgres://postgres:postgres@localhost:5432/finfin?sslmode=disable
 make pilot-bootstrap
 ```
 

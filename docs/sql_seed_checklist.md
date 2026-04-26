@@ -101,9 +101,8 @@ VALUES ('55555555-5555-5555-5555-555555555555','11111111-1111-1111-1111-11111111
 ON CONFLICT (account_id) DO UPDATE
 SET available = EXCLUDED.available, reserved = EXCLUDED.reserved, updated_at = now();
 
--- If your schema uses currency_id instead of hold_currency_id, replace that one column name.
 INSERT INTO core.account_wiring (
-  tenant_id, office_id, hold_currency_id, balance_account_id,
+  tenant_id, office_id, currency_id, balance_account_id,
   available_ledger_account_id, reserved_ledger_account_id, settlement_ledger_account_id,
   created_at, updated_at
 ) VALUES (
@@ -156,7 +155,7 @@ SELECT id, side, amount_give, amount_get, fixed_rate, expires_at
 FROM core.quote_snapshots
 WHERE id = 'quote-reserve-smoke-001';
 
-SELECT tenant_id, office_id, hold_currency_id, balance_account_id
+SELECT tenant_id, office_id, currency_id, balance_account_id
 FROM core.account_wiring
 WHERE tenant_id = '11111111-1111-1111-1111-111111111111'
   AND office_id = '22222222-2222-2222-2222-222222222222';
@@ -256,7 +255,7 @@ WHERE id = 'quote-reserve-smoke-001';
 DELETE FROM core.account_wiring
 WHERE tenant_id = '11111111-1111-1111-1111-111111111111'
   AND office_id = '22222222-2222-2222-2222-222222222222'
-  AND hold_currency_id = '33333333-3333-3333-3333-333333333333';
+  AND currency_id = '33333333-3333-3333-3333-333333333333';
 
 DELETE FROM core.account_balances
 WHERE account_id = '55555555-5555-5555-5555-555555555555';

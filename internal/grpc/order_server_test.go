@@ -70,8 +70,8 @@ func TestReserveOrder_AppAndDomainErrors_AreMapped(t *testing.T) {
 	}{
 		{name: "quote not found", err: app.ErrQuoteNotFound, want: codes.NotFound},
 		{name: "quote expired", err: app.ErrQuoteExpired, want: codes.FailedPrecondition},
-		{name: "quote mismatch", err: app.ErrQuoteMismatch, want: codes.InvalidArgument},
 		{name: "account wiring missing", err: app.ErrAccountWiringNotFound, want: codes.FailedPrecondition},
+		{name: "quote already consumed", err: orders.ErrQuoteAlreadyConsumed, want: codes.FailedPrecondition},
 		{name: "insufficient available", err: orders.ErrInsufficientAvailable, want: codes.ResourceExhausted},
 	}
 

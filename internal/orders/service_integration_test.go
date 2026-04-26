@@ -2,7 +2,7 @@ package orders
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -34,31 +34,19 @@ func TestReserveOrder_EndToEnd(t *testing.T) {
 	seedAccount(t, ctx, pool, balanceAccountID, tenantID, officeID, holdCurrencyID, "balance")
 	seedAccount(t, ctx, pool, availableLedgerAccountID, tenantID, officeID, holdCurrencyID, "available_ledger")
 	seedAccount(t, ctx, pool, reservedLedgerAccountID, tenantID, officeID, holdCurrencyID, "reserved_ledger")
+	seedAccountWiring(t, ctx, pool, tenantID, officeID, holdCurrencyID, balanceAccountID, availableLedgerAccountID, reservedLedgerAccountID, nil)
 
 	seedBalance(t, ctx, pool, balanceAccountID, tenantID, holdCurrencyID, "1000.000000000000000000", "0")
+	seedCanonicalQuote(t, ctx, pool, "quote_001", tenantID, officeID, "sell", giveCurrencyID, getCurrencyID, "100.000000000000000000", "3550.000000000000000000", "35.500000000000000000", time.Now().UTC().Add(30*time.Minute).Truncate(time.Second), "active")
 
 	svc := NewService(pool, slog.Default(), RealJournalPoster{})
 
 	cmd := ReserveOrderCommand{
-		TenantID:                  tenantID,
-		ClientRef:                 clientRef,
-		IdempotencyKey:            uuid.NewString(),
-		OfficeID:                  officeID,
-		QuoteID:                   "quote_001",
-		Side:                      "buy",
-		GiveCurrencyID:            giveCurrencyID,
-		GetCurrencyID:             getCurrencyID,
-		AmountGive:                "100.000000000000000000",
-		AmountGet:                 "3550.000000000000000000",
-		FixedRate:                 "35.500000000000000000",
-		HoldCurrencyID:            holdCurrencyID,
-		HoldAmount:                "100.000000000000000000",
-		BalanceAccountID:          balanceAccountID,
-		AvailableLedgerAccountID:  availableLedgerAccountID,
-		ReservedLedgerAccountID:   reservedLedgerAccountID,
-		SettlementLedgerAccountID: nil,
-		QuotePayload:              json.RawMessage(`{"source":"test"}`),
-		ExpiresAt:                 time.Now().UTC().Add(30 * time.Minute).Truncate(time.Second),
+		TenantID:       tenantID,
+		ClientRef:      clientRef,
+		IdempotencyKey: uuid.NewString(),
+		OfficeID:       officeID,
+		QuoteID:        "quote_001",
 	}
 
 	result, err := svc.ReserveOrder(ctx, cmd)
@@ -114,7 +102,7 @@ WHERE id = $1::uuid
 	if orderClientRef != clientRef {
 		t.Fatalf("expected client_ref %q, got %q", clientRef, orderClientRef)
 	}
-	if orderSide != "buy" {
+	if orderSide != "sell" {
 		t.Fatalf("expected side buy, got %q", orderSide)
 	}
 	if orderAmountGive != "100.000000000000000000" {
@@ -339,14 +327,15 @@ func resetAndMigrateCoreSchema(t *testing.T, ctx context.Context, pool *pgxpool.
 		t.Fatalf("drop core schema: %v", err)
 	}
 
-	migrationPath := mustFindMigrationPath(t, "0001_core_schema.sql")
-	sqlBytes, err := os.ReadFile(migrationPath)
-	if err != nil {
-		t.Fatalf("read migration file: %v", err)
-	}
-
-	if _, err := pool.Exec(ctx, string(sqlBytes)); err != nil {
-		t.Fatalf("apply migration: %v", err)
+	for _, file := range []string{"0001_core_schema.sql", "0002_quote_snapshots.sql", "0003_account_wiring.sql", "0004_pricing_engine.sql", "0005_cash_shifts.sql"} {
+		migrationPath := mustFindMigrationPath(t, file)
+		sqlBytes, err := os.ReadFile(migrationPath)
+		if err != nil {
+			t.Fatalf("read migration file %s: %v", file, err)
+		}
+		if _, err := pool.Exec(ctx, string(sqlBytes)); err != nil {
+			t.Fatalf("apply migration %s: %v", file, err)
+		}
 	}
 }
 
@@ -366,6 +355,67 @@ func mustFindMigrationPath(t *testing.T, filename string) string {
 	}
 
 	return path
+}
+
+func seedCanonicalQuote(t *testing.T, ctx context.Context, pool *pgxpool.Pool, quoteID, tenantID, officeID, side, giveCurrencyID, getCurrencyID, amountGive, amountGet, fixedRate string, expiresAt time.Time, status string) {
+	t.Helper()
+	_, err := pool.Exec(ctx, `
+INSERT INTO core.quotes (
+	id,
+	tenant_id,
+	office_id,
+	client_ref,
+	side,
+	input_mode,
+	requested_amount,
+	give_currency_id,
+	get_currency_id,
+	amount_give,
+	amount_get,
+	fixed_rate,
+	base_rate_snapshot,
+	margin_bps_applied,
+	fixed_fee_applied,
+	rounding_precision,
+	rounding_mode,
+	status,
+	expires_at,
+	created_at
+)
+VALUES (
+	$1,
+	$2::uuid,
+	$3::uuid,
+	'seed',
+	$4,
+	'give',
+	$5::numeric,
+	$6::uuid,
+	$7::uuid,
+	$5::numeric,
+	$8::numeric,
+	$9::numeric,
+	$9::numeric,
+	0,
+	0,
+	2,
+	'half_up',
+	$10,
+	$11,
+	now()
+)
+ON CONFLICT (id) DO UPDATE
+SET status = EXCLUDED.status,
+    expires_at = EXCLUDED.expires_at,
+    amount_give = EXCLUDED.amount_give,
+    amount_get = EXCLUDED.amount_get,
+    fixed_rate = EXCLUDED.fixed_rate,
+    consumed_at = NULL,
+    expired_at = NULL
+`, quoteID, tenantID, officeID, side, amountGive, giveCurrencyID, getCurrencyID, amountGet, fixedRate, status, expiresAt.UTC())
+	if err != nil {
+		t.Fatalf("seed canonical quote: %v", err)
+	}
 }
 
 func seedAccount(
@@ -398,6 +448,63 @@ VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5)
 	)
 	if err != nil {
 		t.Fatalf("seed account %s: %v", accountType, err)
+	}
+}
+
+func seedAccountWiring(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	tenantID string,
+	officeID string,
+	currencyID string,
+	balanceAccountID string,
+	availableLedgerAccountID string,
+	reservedLedgerAccountID string,
+	settlementLedgerAccountID *string,
+) {
+	t.Helper()
+	_, err := pool.Exec(ctx, `
+INSERT INTO core.account_wiring (
+	tenant_id,
+	office_id,
+	currency_id,
+	balance_account_id,
+	available_ledger_account_id,
+	reserved_ledger_account_id,
+	settlement_ledger_account_id,
+	created_at,
+	updated_at
+)
+VALUES (
+	$1::uuid,
+	$2::uuid,
+	$3::uuid,
+	$4::uuid,
+	$5::uuid,
+	$6::uuid,
+	$7::uuid,
+	now(),
+	now()
+)
+ON CONFLICT (tenant_id, office_id, currency_id) DO UPDATE
+SET
+	balance_account_id = EXCLUDED.balance_account_id,
+	available_ledger_account_id = EXCLUDED.available_ledger_account_id,
+	reserved_ledger_account_id = EXCLUDED.reserved_ledger_account_id,
+	settlement_ledger_account_id = EXCLUDED.settlement_ledger_account_id,
+	updated_at = now()
+`,
+		tenantID,
+		officeID,
+		currencyID,
+		balanceAccountID,
+		availableLedgerAccountID,
+		reservedLedgerAccountID,
+		settlementLedgerAccountID,
+	)
+	if err != nil {
+		t.Fatalf("seed account wiring: %v", err)
 	}
 }
 
@@ -434,6 +541,41 @@ VALUES ($1::uuid, $2::uuid, $3::uuid, $4::numeric, $5::numeric)
 	}
 }
 
+func seedOpenShift(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	tenantID string,
+	officeID string,
+	cashierID string,
+) {
+	t.Helper()
+	_, err := pool.Exec(ctx, `
+INSERT INTO core.cash_shifts (
+	tenant_id,
+	office_id,
+	cashier_id,
+	status,
+	opened_at,
+	created_at,
+	updated_at
+)
+VALUES (
+	$1::uuid,
+	$2::uuid,
+	$3,
+	'open',
+	now(),
+	now(),
+	now()
+)
+ON CONFLICT DO NOTHING
+`, tenantID, officeID, cashierID)
+	if err != nil {
+		t.Fatalf("seed open shift: %v", err)
+	}
+}
+
 func TestCompleteOrder_WrongExpectedVersionConflict(t *testing.T) {
 	ctx := context.Background()
 	pool := openTestDB(t)
@@ -455,36 +597,26 @@ func TestCompleteOrder_WrongExpectedVersionConflict(t *testing.T) {
 	seedAccount(t, ctx, pool, balanceAccountID, tenantID, officeID, holdCurrencyID, "balance")
 	seedAccount(t, ctx, pool, availableLedgerAccountID, tenantID, officeID, holdCurrencyID, "available_ledger")
 	seedAccount(t, ctx, pool, reservedLedgerAccountID, tenantID, officeID, holdCurrencyID, "reserved_ledger")
+	seedAccountWiring(t, ctx, pool, tenantID, officeID, holdCurrencyID, balanceAccountID, availableLedgerAccountID, reservedLedgerAccountID, nil)
 	seedAccount(t, ctx, pool, settlementLedgerAccountID, tenantID, officeID, holdCurrencyID, "settlement")
+	seedAccountWiring(t, ctx, pool, tenantID, officeID, holdCurrencyID, balanceAccountID, availableLedgerAccountID, reservedLedgerAccountID, &settlementLedgerAccountID)
 
 	seedBalance(t, ctx, pool, balanceAccountID, tenantID, holdCurrencyID, "500.000000000000000000", "0")
+	seedCanonicalQuote(t, ctx, pool, "quote_002", tenantID, officeID, "sell", giveCurrencyID, getCurrencyID, "50.000000000000000000", "1800.000000000000000000", "36.000000000000000000", time.Now().UTC().Add(30*time.Minute).Truncate(time.Second), "active")
 
 	svc := NewService(pool, slog.Default(), RealJournalPoster{})
 
 	reserveResult, err := svc.ReserveOrder(ctx, ReserveOrderCommand{
-		TenantID:                  tenantID,
-		ClientRef:                 clientRef,
-		IdempotencyKey:            uuid.NewString(),
-		OfficeID:                  officeID,
-		QuoteID:                   "quote_002",
-		Side:                      "buy",
-		GiveCurrencyID:            giveCurrencyID,
-		GetCurrencyID:             getCurrencyID,
-		AmountGive:                "50.000000000000000000",
-		AmountGet:                 "1800.000000000000000000",
-		FixedRate:                 "36.000000000000000000",
-		HoldCurrencyID:            holdCurrencyID,
-		HoldAmount:                "50.000000000000000000",
-		BalanceAccountID:          balanceAccountID,
-		AvailableLedgerAccountID:  availableLedgerAccountID,
-		ReservedLedgerAccountID:   reservedLedgerAccountID,
-		SettlementLedgerAccountID: &settlementLedgerAccountID,
-		QuotePayload:              json.RawMessage(`{"source":"test"}`),
-		ExpiresAt:                 time.Now().UTC().Add(30 * time.Minute).Truncate(time.Second),
+		TenantID:       tenantID,
+		ClientRef:      clientRef,
+		IdempotencyKey: uuid.NewString(),
+		OfficeID:       officeID,
+		QuoteID:        "quote_002",
 	})
 	if err != nil {
 		t.Fatalf("ReserveOrder returned error: %v", err)
 	}
+	seedOpenShift(t, ctx, pool, tenantID, officeID, "cashier_001")
 
 	_, err = svc.CompleteOrder(ctx, CompleteOrderCommand{
 		TenantID:        tenantID,
@@ -498,5 +630,169 @@ func TestCompleteOrder_WrongExpectedVersionConflict(t *testing.T) {
 	}
 	if err != ErrVersionConflict {
 		t.Fatalf("expected ErrVersionConflict, got %v", err)
+	}
+}
+
+func TestReserveOrder_FailsOnConsumedQuote(t *testing.T) {
+	ctx := context.Background()
+	pool := openTestDB(t)
+	resetAndMigrateCoreSchema(t, ctx, pool)
+
+	tenantID := uuid.NewString()
+	officeID := uuid.NewString()
+	giveCurrencyID := uuid.NewString()
+	getCurrencyID := uuid.NewString()
+	holdCurrencyID := giveCurrencyID
+
+	balanceAccountID := uuid.NewString()
+	availableLedgerAccountID := uuid.NewString()
+	reservedLedgerAccountID := uuid.NewString()
+
+	seedAccount(t, ctx, pool, balanceAccountID, tenantID, officeID, holdCurrencyID, "balance")
+	seedAccount(t, ctx, pool, availableLedgerAccountID, tenantID, officeID, holdCurrencyID, "available_ledger")
+	seedAccount(t, ctx, pool, reservedLedgerAccountID, tenantID, officeID, holdCurrencyID, "reserved_ledger")
+	seedAccountWiring(t, ctx, pool, tenantID, officeID, holdCurrencyID, balanceAccountID, availableLedgerAccountID, reservedLedgerAccountID, nil)
+	seedBalance(t, ctx, pool, balanceAccountID, tenantID, holdCurrencyID, "1000.000000000000000000", "0")
+	seedCanonicalQuote(t, ctx, pool, "quote_consumed_1", tenantID, officeID, "sell", giveCurrencyID, getCurrencyID, "100.000000000000000000", "3550.000000000000000000", "35.500000000000000000", time.Now().UTC().Add(30*time.Minute), "consumed")
+
+	svc := NewService(pool, slog.Default(), RealJournalPoster{})
+	_, err := svc.ReserveOrder(ctx, ReserveOrderCommand{
+		TenantID:       tenantID,
+		ClientRef:      "client_consumed",
+		IdempotencyKey: uuid.NewString(),
+		OfficeID:       officeID,
+		QuoteID:        "quote_consumed_1",
+	})
+	if err == nil {
+		t.Fatal("expected quote consumed error")
+	}
+	if !errors.Is(err, ErrQuoteAlreadyConsumed) {
+		t.Fatalf("expected ErrQuoteAlreadyConsumed, got %v", err)
+	}
+}
+
+func TestReserveOrder_RollbackKeepsQuoteActiveOnReserveFailure(t *testing.T) {
+	ctx := context.Background()
+	pool := openTestDB(t)
+	resetAndMigrateCoreSchema(t, ctx, pool)
+
+	tenantID := uuid.NewString()
+	officeID := uuid.NewString()
+	giveCurrencyID := uuid.NewString()
+	getCurrencyID := uuid.NewString()
+	holdCurrencyID := giveCurrencyID
+
+	balanceAccountID := uuid.NewString()
+	availableLedgerAccountID := uuid.NewString()
+	reservedLedgerAccountID := uuid.NewString()
+
+	seedAccount(t, ctx, pool, balanceAccountID, tenantID, officeID, holdCurrencyID, "balance")
+	seedAccount(t, ctx, pool, availableLedgerAccountID, tenantID, officeID, holdCurrencyID, "available_ledger")
+	seedAccount(t, ctx, pool, reservedLedgerAccountID, tenantID, officeID, holdCurrencyID, "reserved_ledger")
+	seedAccountWiring(t, ctx, pool, tenantID, officeID, holdCurrencyID, balanceAccountID, availableLedgerAccountID, reservedLedgerAccountID, nil)
+	seedBalance(t, ctx, pool, balanceAccountID, tenantID, holdCurrencyID, "10.000000000000000000", "0")
+	seedCanonicalQuote(t, ctx, pool, "quote_active_rollback", tenantID, officeID, "sell", giveCurrencyID, getCurrencyID, "100.000000000000000000", "3550.000000000000000000", "35.500000000000000000", time.Now().UTC().Add(30*time.Minute), "active")
+
+	svc := NewService(pool, slog.Default(), RealJournalPoster{})
+	_, err := svc.ReserveOrder(ctx, ReserveOrderCommand{
+		TenantID:       tenantID,
+		ClientRef:      "client_rollback",
+		IdempotencyKey: uuid.NewString(),
+		OfficeID:       officeID,
+		QuoteID:        "quote_active_rollback",
+	})
+	if err == nil {
+		t.Fatal("expected reserve to fail on insufficient funds")
+	}
+
+	var status string
+	if err := pool.QueryRow(ctx, `SELECT status FROM core.quotes WHERE id = 'quote_active_rollback'`).Scan(&status); err != nil {
+		t.Fatalf("load quote status: %v", err)
+	}
+	if status != "active" {
+		t.Fatalf("expected quote to stay active on rollback, got %q", status)
+	}
+}
+
+func TestReserveOrder_FailsOnExpiredQuote(t *testing.T) {
+	ctx := context.Background()
+	pool := openTestDB(t)
+	resetAndMigrateCoreSchema(t, ctx, pool)
+
+	tenantID := uuid.NewString()
+	officeID := uuid.NewString()
+	giveCurrencyID := uuid.NewString()
+	getCurrencyID := uuid.NewString()
+	holdCurrencyID := giveCurrencyID
+
+	balanceAccountID := uuid.NewString()
+	availableLedgerAccountID := uuid.NewString()
+	reservedLedgerAccountID := uuid.NewString()
+
+	seedAccount(t, ctx, pool, balanceAccountID, tenantID, officeID, holdCurrencyID, "balance")
+	seedAccount(t, ctx, pool, availableLedgerAccountID, tenantID, officeID, holdCurrencyID, "available_ledger")
+	seedAccount(t, ctx, pool, reservedLedgerAccountID, tenantID, officeID, holdCurrencyID, "reserved_ledger")
+	seedAccountWiring(t, ctx, pool, tenantID, officeID, holdCurrencyID, balanceAccountID, availableLedgerAccountID, reservedLedgerAccountID, nil)
+	seedBalance(t, ctx, pool, balanceAccountID, tenantID, holdCurrencyID, "1000.000000000000000000", "0")
+	seedCanonicalQuote(t, ctx, pool, "quote_expired_1", tenantID, officeID, "sell", giveCurrencyID, getCurrencyID, "100.000000000000000000", "3550.000000000000000000", "35.500000000000000000", time.Now().UTC().Add(-5*time.Second), "active")
+
+	svc := NewService(pool, slog.Default(), RealJournalPoster{})
+	_, err := svc.ReserveOrder(ctx, ReserveOrderCommand{
+		TenantID:       tenantID,
+		ClientRef:      "client_expired",
+		IdempotencyKey: uuid.NewString(),
+		OfficeID:       officeID,
+		QuoteID:        "quote_expired_1",
+	})
+	if err == nil {
+		t.Fatal("expected expired quote error")
+	}
+	if !errors.Is(err, ErrQuoteExpired) {
+		t.Fatalf("expected ErrQuoteExpired, got %v", err)
+	}
+}
+
+func TestReserveOrder_FailsWhenAccountWiringMissing(t *testing.T) {
+	ctx := context.Background()
+	pool := openTestDB(t)
+	resetAndMigrateCoreSchema(t, ctx, pool)
+
+	tenantID := uuid.NewString()
+	officeID := uuid.NewString()
+	giveCurrencyID := uuid.NewString()
+	getCurrencyID := uuid.NewString()
+	holdCurrencyID := giveCurrencyID
+
+	balanceAccountID := uuid.NewString()
+	availableLedgerAccountID := uuid.NewString()
+	reservedLedgerAccountID := uuid.NewString()
+
+	seedAccount(t, ctx, pool, balanceAccountID, tenantID, officeID, holdCurrencyID, "balance")
+	seedAccount(t, ctx, pool, availableLedgerAccountID, tenantID, officeID, holdCurrencyID, "available_ledger")
+	seedAccount(t, ctx, pool, reservedLedgerAccountID, tenantID, officeID, holdCurrencyID, "reserved_ledger")
+	seedBalance(t, ctx, pool, balanceAccountID, tenantID, holdCurrencyID, "1000.000000000000000000", "0")
+	seedCanonicalQuote(t, ctx, pool, "quote_no_wiring_1", tenantID, officeID, "sell", giveCurrencyID, getCurrencyID, "100.000000000000000000", "3550.000000000000000000", "35.500000000000000000", time.Now().UTC().Add(30*time.Minute), "active")
+
+	svc := NewService(pool, slog.Default(), RealJournalPoster{})
+	_, err := svc.ReserveOrder(ctx, ReserveOrderCommand{
+		TenantID:       tenantID,
+		ClientRef:      "client_no_wiring",
+		IdempotencyKey: uuid.NewString(),
+		OfficeID:       officeID,
+		QuoteID:        "quote_no_wiring_1",
+	})
+	if err == nil {
+		t.Fatal("expected account wiring error")
+	}
+	if !errors.Is(err, ErrAccountWiringNotFound) {
+		t.Fatalf("expected ErrAccountWiringNotFound, got %v", err)
+	}
+
+	var status string
+	if err := pool.QueryRow(ctx, `SELECT status FROM core.quotes WHERE id = 'quote_no_wiring_1'`).Scan(&status); err != nil {
+		t.Fatalf("load quote status: %v", err)
+	}
+	if status != "active" {
+		t.Fatalf("expected quote to stay active when wiring is missing, got %q", status)
 	}
 }

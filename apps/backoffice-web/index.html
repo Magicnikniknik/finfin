@@ -3,14 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FinFin Backoffice Test UI</title>
+    <title>FinFin Backoffice Sandbox UI</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <header>
-      <h1>Backoffice Test UI</h1>
-      <p>Manual smoke console for Nest BFF order endpoints.</p>
+      <h1>Backoffice Sandbox UI</h1>
+      <p>Scenario-driven operator demo console for pricing + orders.</p>
+      <span class="mode-badge">Production-like Sandbox</span>
     </header>
+
+    <section class="kpi-bar">
+      <article class="kpi-card"><span>Active quotes</span><strong id="kpiActiveQuotes">0</strong></article>
+      <article class="kpi-card"><span>Reserved orders</span><strong id="kpiReservedOrders">0</strong></article>
+      <article class="kpi-card"><span>Completed today</span><strong id="kpiCompletedToday">0</strong></article>
+      <article class="kpi-card"><span>Cancelled today</span><strong id="kpiCancelledToday">0</strong></article>
+      <article class="kpi-card"><span>Estimated margin</span><strong id="kpiGrossMargin">—</strong></article>
+      <article class="kpi-card"><span>Stale alerts</span><strong id="kpiStaleAlerts">0</strong></article>
+    </section>
 
     <section class="config card">
       <h2>Connection</h2>
@@ -27,15 +37,94 @@
       <div class="grid two">
         <label>
           client_ref
-          <input id="clientRef" placeholder="client_smoke_001" />
+          <input id="clientRef" placeholder="client_demo_console" />
+        </label>
+        <label>
+          cashier
+          <input id="cashierId" value="cashier_bkk_01" />
         </label>
       </div>
     </section>
 
-    <main>
-      <section class="forms">
-        <article class="card">
-          <h2>ReserveOrder</h2>
+    <section class="demo-session card">
+      <div class="summary-header">
+        <h2>Demo Session Panel</h2>
+        <span id="presentationBadge" class="status neutral">presentation mode: off</span>
+      </div>
+      <div class="actions">
+        <button type="button" id="loadSandboxDefaults">Load Production-like Sandbox</button>
+        <button type="button" id="resetDemoState">Reset Demo State</button>
+        <button type="button" id="runHappyDemo">Happy Path Demo</button>
+        <button type="button" id="runErrorDemo">Error Path Demo</button>
+        <button type="button" id="togglePresentationMode">Hide Debug / Show Debug</button>
+      </div>
+    </section>
+
+    <section class="scenario-console card">
+      <div class="summary-header">
+        <h2>Scenario Console</h2>
+        <span id="scenarioStatus" class="status neutral">no scenario selected</span>
+      </div>
+      <div id="scenarioChips" class="scenario-chips"></div>
+      <div class="scenario-details">
+        <p><span>Scenario</span><strong id="scenarioTitle">—</strong></p>
+        <p><span>What it demonstrates</span><strong id="scenarioDescription">—</strong></p>
+        <p><span>Expected result</span><strong id="scenarioExpected">—</strong></p>
+      </div>
+      <div class="scenario-actions">
+        <button type="button" id="loadScenario">Load Scenario</button>
+        <button type="button" id="runQuote">Run Quote</button>
+        <button type="button" id="runReserve">Run Reserve</button>
+        <button type="button" id="runFullFlow">Run Full Flow</button>
+      </div>
+    </section>
+
+    <main class="workspace">
+      <section class="left-column">
+        <article class="quote-calculator card">
+          <h2>Quote Calculator</h2>
+          <form id="quoteForm" class="grid two">
+            <label>office_id <input name="office_id" required /></label>
+            <label>input_mode
+              <select name="input_mode">
+                <option value="GIVE">GIVE</option>
+                <option value="GET">GET</option>
+              </select>
+            </label>
+            <label>give_currency_id <input name="give_currency_id" required /></label>
+            <label>get_currency_id <input name="get_currency_id" required /></label>
+            <label>amount <input name="amount" required /></label>
+            <label>selected scenario <input id="scenarioName" readonly /></label>
+            <div class="actions full">
+              <button type="submit">Calculate Quote</button>
+              <button type="button" id="copyQuoteId">Copy quote_id</button>
+              <button type="button" id="useQuoteInReserve">Use quote in Reserve</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="quote-summary card">
+          <div class="summary-header">
+            <h2>Quote Summary</h2>
+            <span id="quoteStatusBadge" class="status neutral">no quote</span>
+          </div>
+          <div class="summary-grid">
+            <p><span>quote_id</span><strong id="qQuoteId">—</strong></p>
+            <p><span>office</span><strong id="qOffice">—</strong></p>
+            <p><span>source_name</span><strong id="qSource">—</strong></p>
+            <p><span>base rate</span><strong id="qBaseRate">—</strong></p>
+            <p><span>client rate</span><strong id="qFixedRate">—</strong></p>
+            <p><span>fee</span><strong id="qFee">—</strong></p>
+            <p><span>applied rule</span><strong id="qRule">—</strong></p>
+            <p><span>expires_at</span><strong id="qExpiresAt">—</strong></p>
+            <p><span>status</span><strong id="qStatus">—</strong></p>
+            <p><span>give</span><strong id="qGive">—</strong></p>
+            <p><span>get</span><strong id="qGet">—</strong></p>
+          </div>
+        </article>
+
+        <article class="reserve-workspace card">
+          <h2>Reserve Workspace</h2>
           <form id="reserveForm">
             <div class="grid two">
               <label>idempotency_key <input name="idempotency_key" value="idem-reserve-001" required /></label>
@@ -45,57 +134,99 @@
                   <option value="SELL">SELL</option>
                 </select>
               </label>
-              <label>office_id <input name="office_id" value="office-001" required /></label>
-              <label>quote_id <input name="quote_id" value="quote-001" required /></label>
+              <label>office_id <input name="office_id" required /></label>
+              <label>quote_id <input name="quote_id" required /></label>
             </div>
             <div class="money-grid">
               <fieldset>
                 <legend>give</legend>
-                <label>amount <input name="give_amount" value="100.00" required /></label>
-                <label>currency.code <input name="give_code" value="USDT" required /></label>
-                <label>currency.network <input name="give_network" value="TRC20" required /></label>
+                <label>amount <input name="give_amount" required /></label>
+                <label>currency.code <input name="give_code" required /></label>
+                <label>currency.network <input name="give_network" required /></label>
               </fieldset>
               <fieldset>
                 <legend>get</legend>
-                <label>amount <input name="get_amount" value="3550.00" required /></label>
-                <label>currency.code <input name="get_code" value="THB" required /></label>
-                <label>currency.network <input name="get_network" value="cash" required /></label>
+                <label>amount <input name="get_amount" required /></label>
+                <label>currency.code <input name="get_code" required /></label>
+                <label>currency.network <input name="get_network" required /></label>
               </fieldset>
             </div>
             <button type="submit">Reserve</button>
           </form>
         </article>
-
-        <article class="card">
-          <h2>CompleteOrder</h2>
-          <form id="completeForm" class="grid one">
-            <label>idempotency_key <input name="idempotency_key" value="idem-complete-001" required /></label>
-            <label>order_id <input name="order_id" placeholder="order-id-from-reserve" required /></label>
-            <label>expected_version <input name="expected_version" type="number" value="1" min="0" required /></label>
-            <label>cashier_id <input name="cashier_id" value="cashier-01" required /></label>
-            <button type="submit">Complete</button>
-          </form>
-        </article>
-
-        <article class="card">
-          <h2>CancelOrder</h2>
-          <form id="cancelForm" class="grid one">
-            <label>idempotency_key <input name="idempotency_key" value="idem-cancel-001" required /></label>
-            <label>order_id <input name="order_id" placeholder="order-id-from-reserve" required /></label>
-            <label>expected_version <input name="expected_version" type="number" value="1" min="0" required /></label>
-            <label>reason <input name="reason" value="manual_cancel" required /></label>
-            <button type="submit">Cancel</button>
-          </form>
-        </article>
       </section>
 
-      <aside class="response card">
-        <h2>Response</h2>
-        <p id="statusBadge" class="status idle">idle</p>
-        <pre id="responseJson">{ "message": "Send a request to see JSON response" }</pre>
-      </aside>
+      <section class="right-column">
+        <article class="order-operations card">
+          <h2>Order Operations</h2>
+          <div class="grid one">
+            <form id="completeForm" class="grid one">
+              <label>idempotency_key <input name="idempotency_key" value="idem-complete-001" required /></label>
+              <label>order_id <input name="order_id" required /></label>
+              <label>expected_version <input name="expected_version" type="number" value="1" min="0" required /></label>
+              <label>cashier_id <input name="cashier_id" value="cashier_bkk_01" required /></label>
+              <button type="submit">Complete</button>
+            </form>
+            <form id="cancelForm" class="grid one">
+              <label>idempotency_key <input name="idempotency_key" value="idem-cancel-001" required /></label>
+              <label>order_id <input name="order_id" required /></label>
+              <label>expected_version <input name="expected_version" type="number" value="1" min="0" required /></label>
+              <label>reason <input name="reason" value="manual_cancel" required /></label>
+              <button type="submit">Cancel</button>
+            </form>
+          </div>
+        </article>
+
+        <article class="order-summary card">
+          <div class="summary-header">
+            <h2>Order Summary</h2>
+            <span id="orderStatusBadge" class="status neutral">no order</span>
+          </div>
+          <div class="summary-grid">
+            <p><span>order_id</span><strong id="oOrderId">—</strong></p>
+            <p><span>order_ref</span><strong id="oOrderRef">—</strong></p>
+            <p><span>status</span><strong id="oStatus">—</strong></p>
+            <p><span>version</span><strong id="oVersion">—</strong></p>
+            <p><span>expires_at</span><strong id="oExpiresAt">—</strong></p>
+            <p><span>quote status</span><strong id="oQuoteStatus">—</strong></p>
+            <p><span>held asset</span><strong id="oHeldCurrency">—</strong></p>
+            <p><span>held amount</span><strong id="oHeldAmount">—</strong></p>
+          </div>
+        </article>
+
+        <article class="timeline card">
+          <h2>State Timeline</h2>
+          <ol id="stateTimeline" class="timeline-list">
+            <li data-step="quote">Quote: not started</li>
+            <li data-step="reserve">Order reserve: not started</li>
+            <li data-step="complete">Order complete: not started</li>
+            <li data-step="cancel">Order cancel: not started</li>
+          </ol>
+        </article>
+
+        <article class="audit-panel card">
+          <h2>Why / Audit</h2>
+          <div id="auditRows" class="audit-rows"></div>
+        </article>
+
+        <article id="debugPanel" class="debug-response card">
+          <h2>Debug / Raw Response</h2>
+          <p id="statusBadge" class="status idle">idle</p>
+          <pre id="responseJson">{ "message": "Send a request to see JSON response" }</pre>
+        </article>
+      </section>
     </main>
 
-    <script src="./app.js"></script>
+    <footer class="walkthrough-footer card">
+      <h3>Demo Walkthrough</h3>
+      <ol>
+        <li>Load scenario and run quote.</li>
+        <li>Reserve from quote.</li>
+        <li>Complete or cancel order.</li>
+        <li>Review timeline + Why/Audit.</li>
+      </ol>
+    </footer>
+
+    <script type="module" src="./app.js"></script>
   </body>
 </html>

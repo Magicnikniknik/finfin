@@ -1,8 +1,6 @@
 BEGIN;
 
 -- Full seed for ReserveOrder smoke.
--- NOTE: if account_wiring column is currency_id in your schema, replace hold_currency_id below.
-
 INSERT INTO core.accounts (id, tenant_id, office_id, currency_id, account_type) VALUES
   ('55555555-5555-5555-5555-555555555555','11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222','33333333-3333-3333-3333-333333333333','balance'),
   ('66666666-6666-6666-6666-666666666666','11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222','33333333-3333-3333-3333-333333333333','available_ledger'),
@@ -16,7 +14,7 @@ ON CONFLICT (account_id) DO UPDATE
 SET available = EXCLUDED.available, reserved = EXCLUDED.reserved, updated_at = now();
 
 INSERT INTO core.account_wiring (
-  tenant_id, office_id, hold_currency_id, balance_account_id,
+  tenant_id, office_id, currency_id, balance_account_id,
   available_ledger_account_id, reserved_ledger_account_id, settlement_ledger_account_id,
   created_at, updated_at
 ) VALUES (
@@ -29,7 +27,13 @@ INSERT INTO core.account_wiring (
   '88888888-8888-8888-8888-888888888888',
   now(), now()
 )
-ON CONFLICT DO NOTHING;
+ON CONFLICT (tenant_id, office_id, currency_id) DO UPDATE
+SET
+  balance_account_id = EXCLUDED.balance_account_id,
+  available_ledger_account_id = EXCLUDED.available_ledger_account_id,
+  reserved_ledger_account_id = EXCLUDED.reserved_ledger_account_id,
+  settlement_ledger_account_id = EXCLUDED.settlement_ledger_account_id,
+  updated_at = now();
 
 INSERT INTO core.quote_snapshots (
   id, tenant_id, office_id, side, expires_at,

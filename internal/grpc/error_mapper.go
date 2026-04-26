@@ -5,6 +5,7 @@ import (
 
 	"finfin/internal/app"
 	"finfin/internal/orders"
+	"finfin/internal/pricing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -23,9 +24,15 @@ func MapDomainError(err error) error {
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, app.ErrQuoteExpired):
 		return status.Error(codes.FailedPrecondition, err.Error())
-	case errors.Is(err, app.ErrQuoteMismatch):
-		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, app.ErrAccountWiringNotFound):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, orders.ErrQuoteNotFound):
+		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, orders.ErrQuoteExpired):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, orders.ErrQuoteAlreadyConsumed):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, orders.ErrAccountWiringNotFound):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, orders.ErrInvalidAmount):
 		return status.Error(codes.InvalidArgument, err.Error())
@@ -39,12 +46,24 @@ func MapDomainError(err error) error {
 		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, orders.ErrOrderAlreadyExpired):
 		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, orders.ErrShiftNotOpen):
+		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, orders.ErrInsufficientAvailable):
 		return status.Error(codes.ResourceExhausted, err.Error())
 	case errors.Is(err, orders.ErrInsufficientReserved):
 		return status.Error(codes.ResourceExhausted, err.Error())
 	case errors.Is(err, orders.ErrIdempotencyConflict):
 		return status.Error(codes.AlreadyExists, err.Error())
+	case errors.Is(err, pricing.ErrInvalidQuoteInput):
+		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, pricing.ErrBaseRateNotFound):
+		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, pricing.ErrNoMarginRuleFound):
+		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, pricing.ErrRateStale):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, pricing.ErrRateGuardrailTriggered):
+		return status.Error(codes.FailedPrecondition, err.Error())
 	default:
 		return status.Error(codes.Internal, err.Error())
 	}

@@ -6,16 +6,24 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 
+import { JwtPayload } from '../../auth/interfaces/jwt-payload.interface';
+
 export const CurrentTenant = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): string => {
-    const request = ctx.switchToHttp().getRequest<Request>();
-    const value = getSingleHeader(request, 'x-tenant-id');
+    const request = ctx
+      .switchToHttp()
+      .getRequest<Request & { user?: JwtPayload }>();
 
+    if (request.user?.tenant_id) {
+      return request.user.tenant_id;
+    }
+
+    const value = getSingleHeader(request, 'x-tenant-id');
     if (!value) {
       throw new UnauthorizedException({
         error: {
           code: 'MISSING_TENANT',
-          message: 'x-tenant-id header is required',
+          message: 'tenant_id is required',
         },
       });
     }

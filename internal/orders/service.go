@@ -221,10 +221,21 @@ VALUES (
 		return ReserveOrderResult{}, fmt.Errorf("insert outbox order_reserved: %w", err)
 	}
 
-	tag, err := tx.Exec(ctx, `
-UPDATE core.quotes
-SET
-	status = 'consumed',
+	tag, err = tx.Exec(ctx, `
+	UPDATE core.quotes
+	SET
+		status = 'consumed',
+	consumed_at = $4
+WHERE id = $1
+  AND tenant_id = $2::uuid
+  AND office_id = $3::uuid
+  AND status = 'active'
+`,
+		cmd.QuoteID,
+		cmd.TenantID,
+		cmd.OfficeID,
+		now,
+	)
 	consumed_at = $4
 WHERE id = $1
   AND tenant_id = $2::uuid

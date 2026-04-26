@@ -38,7 +38,7 @@ export class OrdersController {
       action: 'reserve',
       entity_type: 'order',
       entity_id: result.order_id,
-      payload_snapshot: body,
+      payload_snapshot: body as unknown as Record<string, unknown>,
     });
 
     return result;

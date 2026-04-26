@@ -2,7 +2,6 @@ package orders
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"time"
 
@@ -42,25 +41,6 @@ type ReserveOrderCommand struct {
 
 	OfficeID string
 	QuoteID  string
-	Side     string
-
-	GiveCurrencyID string
-	GetCurrencyID  string
-
-	AmountGive string
-	AmountGet  string
-	FixedRate  string
-
-	HoldCurrencyID string
-	HoldAmount     string
-
-	BalanceAccountID          string
-	AvailableLedgerAccountID  string
-	ReservedLedgerAccountID   string
-	SettlementLedgerAccountID *string
-
-	QuotePayload json.RawMessage
-	ExpiresAt    time.Time
 }
 
 type ReserveOrderResult struct {
@@ -118,4 +98,25 @@ type lockedOrder struct {
 	CurrencyID                string
 	Amount                    string
 	ExpiresAt                 time.Time
+}
+
+type lockedQuote struct {
+	QuoteID        string
+	TenantID       string
+	OfficeID       string
+	Status         string
+	Side           string
+	GiveCurrencyID string
+	GetCurrencyID  string
+	AmountGive     string
+	AmountGet      string
+	FixedRate      string
+	ExpiresAt      time.Time
+}
+
+type resolvedWiring struct {
+	BalanceAccountID          string
+	AvailableLedgerAccountID  string
+	ReservedLedgerAccountID   string
+	SettlementLedgerAccountID *string
 }

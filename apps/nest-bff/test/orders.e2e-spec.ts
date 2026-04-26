@@ -1,9 +1,15 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { ForbiddenException, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 
+import { JwtAuthGuard } from '../src/auth/jwt-auth.guard';
+import { RolesGuard } from '../src/auth/guards/roles.guard';
+
 import { GlobalExceptionFilter } from '../src/common/filters/global-exception.filter';
+import { AuditService } from '../src/audit/audit.service';
+import { ShiftsService } from '../src/shifts/shifts.service';
 import { OrdersController } from '../src/orders/orders.controller';
+import { OperatorPolicyService } from '../src/common/policies/operator-policy.service';
 import { OrdersService } from '../src/orders/orders.service';
 
 describe('OrdersController (e2e)', () => {
@@ -15,14 +21,34 @@ describe('OrdersController (e2e)', () => {
     cancel: jest.fn(),
   };
 
+  const shiftsMock = { hasActiveShift: jest.fn(() => true) };
+  const auditMock = { record: jest.fn() };
+
+  const policyMock = {
+    ensureCanReserveOrder: jest.fn(),
+    ensureCanCompleteOrder: jest.fn(),
+    ensureCanCancelOrder: jest.fn(),
+  };
+
+  const jwtGuardMock = { canActivate: jest.fn(() => true) };
+  const rolesGuardMock = { canActivate: jest.fn(() => true) };
+
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [OrdersController],
       providers: [
+        { provide: JwtAuthGuard, useValue: jwtGuardMock },
+        { provide: RolesGuard, useValue: rolesGuardMock },
         {
           provide: OrdersService,
           useValue: ordersServiceMock,
         },
+        {
+          provide: OperatorPolicyService,
+          useValue: policyMock,
+        },
+        { provide: ShiftsService, useValue: shiftsMock },
+        { provide: AuditService, useValue: auditMock },
       ],
     }).compile();
 
@@ -34,6 +60,18 @@ describe('OrdersController (e2e)', () => {
         transform: true,
       }),
     );
+
+    app.use((req: any, _res, next) => {
+      req.user = {
+        sub: 'u-1',
+        tenant_id: 'tenant-1',
+        office_id: 'office-1',
+        role: req.headers['x-role'] || 'owner',
+        login: 'operator-1',
+        scope_office_ids: ['office-1'],
+      };
+      next();
+    });
 
     app.useGlobalFilters(new GlobalExceptionFilter());
     await app.init();
@@ -66,8 +104,6 @@ describe('OrdersController (e2e)', () => {
 
     const res = await request(app.getHttpServer())
       .post('/orders/reserve')
-      .set('x-tenant-id', 'tenant-1')
-      .set('x-client-ref', 'client-1')
       .send(payload)
       .expect(201);
 
@@ -89,8 +125,6 @@ describe('OrdersController (e2e)', () => {
 
     const res = await request(app.getHttpServer())
       .post('/orders/complete')
-      .set('x-tenant-id', 'tenant-1')
-      .set('x-client-ref', 'client-1')
       .send({
         idempotency_key: 'idem-complete-1',
         order_id: 'order-123',
@@ -116,8 +150,6 @@ describe('OrdersController (e2e)', () => {
 
     const res = await request(app.getHttpServer())
       .post('/orders/cancel')
-      .set('x-tenant-id', 'tenant-1')
-      .set('x-client-ref', 'client-1')
       .send({
         idempotency_key: 'idem-cancel-1',
         order_id: 'order-123',
@@ -133,49 +165,45 @@ describe('OrdersController (e2e)', () => {
     });
   });
 
-  it('POST /orders/reserve -> missing tenant header', async () => {
-    const payload = {
-      idempotency_key: 'idem-reserve-2',
-      office_id: 'office-1',
-      quote_id: 'quote-1',
-      side: 'BUY',
-      give: { amount: '100.00', currency: { code: 'USDT', network: 'TRC20' } },
-      get: { amount: '3550.00', currency: { code: 'THB', network: 'cash' } },
-    };
-
-    const res = await request(app.getHttpServer())
-      .post('/orders/reserve')
-      .set('x-client-ref', 'client-1')
-      .send(payload)
-      .expect(401);
-
-    expect(res.body).toEqual({
-      error: { code: 'MISSING_TENANT', message: 'x-tenant-id header is required' },
+  it('POST /orders/reserve -> cashier blocked in foreign office', async () => {
+    policyMock.ensureCanReserveOrder.mockImplementation(() => {
+      throw new ForbiddenException({ error: { code: 'OFFICE_SCOPE_VIOLATION', message: 'blocked' } });
     });
+
+    await request(app.getHttpServer())
+      .post('/orders/reserve')
+      .set('x-role', 'cashier')
+      .send({
+        idempotency_key: 'idem-reserve-2',
+        office_id: 'office-foreign',
+        quote_id: 'quote-1',
+        side: 'BUY',
+        give: { amount: '100.00', currency: { code: 'USDT', network: 'TRC20' } },
+        get: { amount: '3550.00', currency: { code: 'THB', network: 'cash' } },
+      })
+      .expect(403);
   });
 
-  it('POST /orders/complete -> missing client-ref header', async () => {
+  it('POST /orders/cancel -> cashier blocked without active shift', async () => {
+    shiftsMock.hasActiveShift.mockReturnValue(false);
+
     const res = await request(app.getHttpServer())
-      .post('/orders/complete')
-      .set('x-tenant-id', 'tenant-1')
+      .post('/orders/cancel')
+      .set('x-role', 'cashier')
       .send({
-        idempotency_key: 'idem-complete-2',
+        idempotency_key: 'idem-cancel-2',
         order_id: 'order-123',
         expected_version: 1,
-        cashier_id: 'cashier-1',
+        reason: 'user_request',
       })
-      .expect(401);
+      .expect(403);
 
-    expect(res.body).toEqual({
-      error: { code: 'MISSING_CLIENT_REF', message: 'x-client-ref header is required' },
-    });
+    expect(res.body.error.code).toBe('SHIFT_NOT_OPEN');
   });
 
   it('POST /orders/reserve -> validation failed', async () => {
     const res = await request(app.getHttpServer())
       .post('/orders/reserve')
-      .set('x-tenant-id', 'tenant-1')
-      .set('x-client-ref', 'client-1')
       .send({
         idempotency_key: 'idem-reserve-3',
       })

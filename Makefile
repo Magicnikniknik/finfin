@@ -1,4 +1,4 @@
-.PHONY: db-up db-down migrate proto test test-integration run-ttl run-outbox smoke-seed-fast smoke-seed-reserve smoke-reset smoke-check-short smoke-check-full smoke-reserve smoke-complete smoke-cancel
+.PHONY: db-up db-down migrate proto test test-integration run-ttl run-outbox smoke-bootstrap smoke-full-cycle smoke-seed-pricing smoke-seed-demo smoke-seed-fast smoke-seed-reserve smoke-reset smoke-check-short smoke-check-full smoke-reserve smoke-complete smoke-cancel pilot-up pilot-down pilot-bootstrap pilot-smoke
 
 db-up:
 	docker compose up -d postgres
@@ -10,6 +10,11 @@ migrate:
 	@test -n "$$DATABASE_URL" || (echo "DATABASE_URL is required" && exit 1)
 	psql "$$DATABASE_URL" -f migrations/0001_core_schema.sql
 	psql "$$DATABASE_URL" -f migrations/0002_quote_snapshots.sql
+	psql "$$DATABASE_URL" -f migrations/0003_account_wiring.sql
+	psql "$$DATABASE_URL" -f migrations/0004_pricing_engine.sql
+	psql "$$DATABASE_URL" -f migrations/0005_cash_shifts.sql
+	psql "$$DATABASE_URL" -f migrations/0006_auth_schema.sql
+	psql "$$DATABASE_URL" -f migrations/0007_audit_logs.sql
 
 proto:
 	@command -v protoc >/dev/null 2>&1 || (echo "protoc is required" && exit 1)
@@ -19,7 +24,8 @@ proto:
 		-I proto \
 		--go_out=gen --go_opt=paths=source_relative \
 		--go-grpc_out=gen --go-grpc_opt=paths=source_relative \
-		proto/exchange/order/v1/order_service.proto
+		proto/exchange/order/v1/order_service.proto \
+		proto/exchange/pricing/v1/pricing_service.proto
 
 test:
 	go test ./...
@@ -33,6 +39,23 @@ run-ttl:
 
 run-outbox:
 	go run ./cmd/outbox-publisher
+
+
+smoke-bootstrap:
+	./scripts/smoke/bootstrap.sh
+
+smoke-full-cycle:
+	./scripts/smoke/full_cycle.sh
+
+smoke-seed-pricing:
+	@command -v psql >/dev/null 2>&1 || (echo "psql is required to run smoke SQL scripts" && exit 1)
+	@test -n "$$DATABASE_URL" || (echo "DATABASE_URL is required" && exit 1)
+	psql "$$DATABASE_URL" -f scripts/smoke/seed_pricing.sql
+
+smoke-seed-demo:
+	@command -v psql >/dev/null 2>&1 || (echo "psql is required to run smoke SQL scripts" && exit 1)
+	@test -n "$$DATABASE_URL" || (echo "DATABASE_URL is required" && exit 1)
+	psql "$$DATABASE_URL" -f scripts/smoke/seed_demo.sql
 
 smoke-seed-fast:
 	@command -v psql >/dev/null 2>&1 || (echo "psql is required to run smoke SQL scripts" && exit 1)
@@ -67,3 +90,16 @@ smoke-complete:
 
 smoke-cancel:
 	./scripts/smoke/cancel.sh
+
+
+pilot-up:
+	docker compose -f docker-compose.pilot.yml --env-file .env up -d --build
+
+pilot-down:
+	docker compose -f docker-compose.pilot.yml --env-file .env down -v
+
+pilot-bootstrap:
+	bash scripts/bootstrap_pilot.sh
+
+pilot-smoke:
+	@echo "Run docs/PILOT_ACCEPTANCE_CHECKLIST.md"

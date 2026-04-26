@@ -2,6 +2,7 @@ package orders
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -21,15 +22,33 @@ func (s *Service) ReserveOrder(ctx context.Context, cmd ReserveOrderCommand) (Re
 		return ReserveOrderResult{}, fmt.Errorf("set lock_timeout: %w", err)
 	}
 
+	now := s.now()
+	quote, err := lockActiveQuoteForReserve(ctx, tx, cmd.TenantID, cmd.OfficeID, cmd.QuoteID, now)
+	if err != nil {
+		return ReserveOrderResult{}, err
+	}
+	holdCurrencyID, holdAmount, err := deriveHoldFromQuote(quote)
+	if err != nil {
+		return ReserveOrderResult{}, err
+	}
+	wiring, err := lockAccountWiringForReserve(ctx, tx, cmd.TenantID, cmd.OfficeID, holdCurrencyID)
+	if err != nil {
+		return ReserveOrderResult{}, err
+	}
+
 	reqHash := buildRequestHash(
 		cmd.TenantID,
 		cmd.ClientRef,
 		cmd.IdempotencyKey,
 		cmd.OfficeID,
 		cmd.QuoteID,
-		cmd.HoldAmount,
-		cmd.HoldCurrencyID,
-		cmd.ExpiresAt.UTC().Format(time.RFC3339),
+		quote.Side,
+		quote.GiveCurrencyID,
+		quote.GetCurrencyID,
+		quote.AmountGive,
+		quote.AmountGet,
+		quote.FixedRate,
+		quote.ExpiresAt.UTC().Format(time.RFC3339),
 	)
 
 	rec, err := acquireIdempotency(ctx, tx, cmd.TenantID, "reserve_order", cmd.IdempotencyKey, reqHash)
@@ -40,7 +59,6 @@ func (s *Service) ReserveOrder(ctx context.Context, cmd ReserveOrderCommand) (Re
 		return decodeCachedResponse[ReserveOrderResult](rec)
 	}
 
-	now := s.now()
 	orderID := uuid.NewString()
 	holdID := uuid.NewString()
 	orderRef := buildPublicOrderRef()
@@ -55,8 +73,8 @@ WHERE account_id = $2::uuid
   AND tenant_id = $4::uuid
   AND available >= ($1::numeric)
 `,
-		cmd.HoldAmount,
-		cmd.BalanceAccountID,
+		holdAmount,
+		wiring.BalanceAccountID,
 		now,
 		cmd.TenantID,
 	)
@@ -113,15 +131,15 @@ VALUES (
 		cmd.TenantID,
 		cmd.OfficeID,
 		cmd.ClientRef,
-		cmd.Side,
-		cmd.GiveCurrencyID,
-		cmd.GetCurrencyID,
-		cmd.AmountGive,
-		cmd.AmountGet,
-		cmd.FixedRate,
-		cmd.QuotePayload,
+		quote.Side,
+		quote.GiveCurrencyID,
+		quote.GetCurrencyID,
+		quote.AmountGive,
+		quote.AmountGet,
+		quote.FixedRate,
+		canonicalQuotePayload(quote, holdCurrencyID, holdAmount),
 		now,
-		cmd.ExpiresAt.UTC(),
+		quote.ExpiresAt.UTC(),
 		orderRef,
 	)
 	if err != nil {
@@ -161,13 +179,13 @@ VALUES (
 		holdID,
 		cmd.TenantID,
 		orderID,
-		cmd.BalanceAccountID,
-		cmd.AvailableLedgerAccountID,
-		cmd.ReservedLedgerAccountID,
-		cmd.SettlementLedgerAccountID,
-		cmd.HoldCurrencyID,
-		cmd.HoldAmount,
-		cmd.ExpiresAt.UTC(),
+		wiring.BalanceAccountID,
+		wiring.AvailableLedgerAccountID,
+		wiring.ReservedLedgerAccountID,
+		wiring.SettlementLedgerAccountID,
+		holdCurrencyID,
+		holdAmount,
+		quote.ExpiresAt.UTC(),
 		now,
 	)
 	if err != nil {
@@ -178,10 +196,10 @@ VALUES (
 		TenantID:                 cmd.TenantID,
 		OrderID:                  orderID,
 		HoldID:                   holdID,
-		AvailableLedgerAccountID: cmd.AvailableLedgerAccountID,
-		ReservedLedgerAccountID:  cmd.ReservedLedgerAccountID,
-		CurrencyID:               cmd.HoldCurrencyID,
-		Amount:                   cmd.HoldAmount,
+		AvailableLedgerAccountID: wiring.AvailableLedgerAccountID,
+		ReservedLedgerAccountID:  wiring.ReservedLedgerAccountID,
+		CurrencyID:               holdCurrencyID,
+		Amount:                   holdAmount,
 		Reason:                   "reserve_order",
 	}); err != nil {
 		return ReserveOrderResult{}, fmt.Errorf("post hold_create journal: %w", err)
@@ -197,17 +215,39 @@ VALUES (
 			"order_ref":     orderRef,
 			"office_id":     cmd.OfficeID,
 			"quote_id":      cmd.QuoteID,
-			"expires_at_ts": cmd.ExpiresAt.UTC().Unix(),
+			"expires_at_ts": quote.ExpiresAt.UTC().Unix(),
 		},
 	}); err != nil {
 		return ReserveOrderResult{}, fmt.Errorf("insert outbox order_reserved: %w", err)
+	}
+
+	tag, err := tx.Exec(ctx, `
+UPDATE core.quotes
+SET
+	status = 'consumed',
+	consumed_at = $4
+WHERE id = $1
+  AND tenant_id = $2::uuid
+  AND office_id = $3::uuid
+  AND status = 'active'
+`,
+		cmd.QuoteID,
+		cmd.TenantID,
+		cmd.OfficeID,
+		now,
+	)
+	if err != nil {
+		return ReserveOrderResult{}, fmt.Errorf("consume quote: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return ReserveOrderResult{}, ErrQuoteAlreadyConsumed
 	}
 
 	result := ReserveOrderResult{
 		OrderID:   orderID,
 		OrderRef:  orderRef,
 		Status:    "reserved",
-		ExpiresAt: cmd.ExpiresAt.UTC(),
+		ExpiresAt: quote.ExpiresAt.UTC(),
 		Version:   1,
 	}
 
@@ -220,6 +260,112 @@ VALUES (
 	}
 
 	return result, nil
+}
+
+func lockActiveQuoteForReserve(ctx context.Context, tx pgx.Tx, tenantID, officeID, quoteID string, now time.Time) (lockedQuote, error) {
+	const q = `
+SELECT
+	id,
+	tenant_id::text,
+	office_id::text,
+	side,
+	give_currency_id::text,
+	get_currency_id::text,
+	amount_give::text,
+	amount_get::text,
+	fixed_rate::text,
+	expires_at,
+	status
+FROM core.quotes
+WHERE id = $1
+  AND tenant_id = $2::uuid
+  AND office_id = $3::uuid
+FOR UPDATE
+`
+	var out lockedQuote
+	if err := tx.QueryRow(ctx, q, quoteID, tenantID, officeID).Scan(
+		&out.QuoteID,
+		&out.TenantID,
+		&out.OfficeID,
+		&out.Side,
+		&out.GiveCurrencyID,
+		&out.GetCurrencyID,
+		&out.AmountGive,
+		&out.AmountGet,
+		&out.FixedRate,
+		&out.ExpiresAt,
+		&out.Status,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return lockedQuote{}, ErrQuoteNotFound
+		}
+		return lockedQuote{}, fmt.Errorf("lock quote for reserve: %w", err)
+	}
+
+	if out.Status != "active" {
+		if out.Status == "expired" {
+			return lockedQuote{}, ErrQuoteExpired
+		}
+		return lockedQuote{}, ErrQuoteAlreadyConsumed
+	}
+	if !out.ExpiresAt.UTC().After(now.UTC()) {
+		return lockedQuote{}, ErrQuoteExpired
+	}
+
+	return out, nil
+}
+
+func deriveHoldFromQuote(q lockedQuote) (string, string, error) {
+	switch q.Side {
+	case "buy":
+		return q.GetCurrencyID, q.AmountGet, nil
+	case "sell":
+		return q.GiveCurrencyID, q.AmountGive, nil
+	default:
+		return "", "", fmt.Errorf("unsupported quote side %q", q.Side)
+	}
+}
+
+func lockAccountWiringForReserve(ctx context.Context, tx pgx.Tx, tenantID, officeID, currencyID string) (resolvedWiring, error) {
+	const q = `
+SELECT
+	balance_account_id::text,
+	available_ledger_account_id::text,
+	reserved_ledger_account_id::text,
+	settlement_ledger_account_id::text
+FROM core.account_wiring
+WHERE tenant_id = $1::uuid
+  AND office_id = $2::uuid
+  AND currency_id = $3::uuid
+LIMIT 1
+`
+	var out resolvedWiring
+	if err := tx.QueryRow(ctx, q, tenantID, officeID, currencyID).Scan(
+		&out.BalanceAccountID,
+		&out.AvailableLedgerAccountID,
+		&out.ReservedLedgerAccountID,
+		&out.SettlementLedgerAccountID,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return resolvedWiring{}, ErrAccountWiringNotFound
+		}
+		return resolvedWiring{}, fmt.Errorf("resolve account wiring: %w", err)
+	}
+	return out, nil
+}
+
+func canonicalQuotePayload(q lockedQuote, holdCurrencyID, holdAmount string) json.RawMessage {
+	payload, _ := json.Marshal(map[string]any{
+		"quote_id":   q.QuoteID,
+		"office_id":  q.OfficeID,
+		"side":       q.Side,
+		"expires_at": q.ExpiresAt.UTC().Format(time.RFC3339),
+		"give":       map[string]any{"amount": q.AmountGive, "currency_id": q.GiveCurrencyID},
+		"get":        map[string]any{"amount": q.AmountGet, "currency_id": q.GetCurrencyID},
+		"fixed_rate": q.FixedRate,
+		"hold":       map[string]any{"currency_id": holdCurrencyID, "amount": holdAmount},
+	})
+	return payload
 }
 
 func (s *Service) CompleteOrder(ctx context.Context, cmd CompleteOrderCommand) (CompleteOrderResult, error) {
@@ -264,6 +410,9 @@ func (s *Service) CompleteOrder(ctx context.Context, cmd CompleteOrderCommand) (
 	}
 	if ord.SettlementLedgerAccountID == nil || *ord.SettlementLedgerAccountID == "" {
 		return CompleteOrderResult{}, fmt.Errorf("missing settlement ledger account for order %s", ord.OrderID)
+	}
+	if err := ensureOpenShiftForCashier(ctx, tx, cmd.TenantID, ord.OfficeID, cmd.CashierID); err != nil {
+		return CompleteOrderResult{}, err
 	}
 
 	now := s.now()
@@ -533,6 +682,26 @@ WHERE account_id = $2::uuid
 	}
 
 	return result, nil
+}
+
+func ensureOpenShiftForCashier(ctx context.Context, tx pgx.Tx, tenantID, officeID, cashierID string) error {
+	const q = `
+SELECT id
+FROM core.cash_shifts
+WHERE tenant_id = $1::uuid
+  AND office_id = $2::uuid
+  AND cashier_id = $3
+  AND status = 'open'
+LIMIT 1
+`
+	var shiftID string
+	if err := tx.QueryRow(ctx, q, tenantID, officeID, cashierID).Scan(&shiftID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrShiftNotOpen
+		}
+		return fmt.Errorf("check open shift: %w", err)
+	}
+	return nil
 }
 
 func lockOrderForMutation(ctx context.Context, tx pgx.Tx, tenantID, orderID string) (lockedOrder, error) {

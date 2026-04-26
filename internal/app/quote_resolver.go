@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -53,18 +52,11 @@ SELECT
 	side,
 	expires_at,
 	give_currency_id::text,
-	give_currency_code,
-	give_currency_network,
 	amount_give::text,
 	get_currency_id::text,
-	get_currency_code,
-	get_currency_network,
 	amount_get::text,
-	fixed_rate::text,
-	hold_currency_id::text,
-	hold_amount::text,
-	payload
-FROM core.quote_snapshots
+	fixed_rate::text
+FROM core.quotes
 WHERE id = $1
   AND tenant_id = $2::uuid
   AND office_id = $3::uuid
@@ -74,7 +66,6 @@ LIMIT 1
 	var out ResolvedQuote
 	var tenantID string
 	var officeID string
-	var payload []byte
 
 	err := r.db.QueryRow(ctx, q,
 		strings.TrimSpace(req.QuoteID),
@@ -87,17 +78,10 @@ LIMIT 1
 		&out.Side,
 		&out.ExpiresAt,
 		&out.GiveCurrencyID,
-		&out.GiveCurrencyCode,
-		&out.GiveCurrencyNetwork,
 		&out.AmountGive,
 		&out.GetCurrencyID,
-		&out.GetCurrencyCode,
-		&out.GetCurrencyNetwork,
 		&out.AmountGet,
 		&out.FixedRate,
-		&out.HoldCurrencyID,
-		&out.HoldAmount,
-		&payload,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -108,19 +92,14 @@ LIMIT 1
 
 	out.QuoteID = strings.TrimSpace(out.QuoteID)
 	out.OfficeID = strings.TrimSpace(officeID)
-        out.Side = normalize(out.Side)
+	out.Side = strings.ToLower(strings.TrimSpace(out.Side))
 	out.GiveCurrencyID = strings.TrimSpace(out.GiveCurrencyID)
-	out.GiveCurrencyCode = strings.TrimSpace(out.GiveCurrencyCode)
-	out.GiveCurrencyNetwork = strings.TrimSpace(out.GiveCurrencyNetwork)
 	out.AmountGive = strings.TrimSpace(out.AmountGive)
 	out.GetCurrencyID = strings.TrimSpace(out.GetCurrencyID)
-	out.GetCurrencyCode = strings.TrimSpace(out.GetCurrencyCode)
-	out.GetCurrencyNetwork = strings.TrimSpace(out.GetCurrencyNetwork)
 	out.AmountGet = strings.TrimSpace(out.AmountGet)
 	out.FixedRate = strings.TrimSpace(out.FixedRate)
-	out.HoldCurrencyID = strings.TrimSpace(out.HoldCurrencyID)
-	out.HoldAmount = strings.TrimSpace(out.HoldAmount)
-	out.Payload = json.RawMessage(payload)
+	out.HoldCurrencyID = strings.TrimSpace(out.GiveCurrencyID)
+	out.HoldAmount = strings.TrimSpace(out.AmountGive)
 
 	now := r.now()
 	if !out.ExpiresAt.UTC().After(now) {

@@ -8,8 +8,8 @@ export function ScenarioConsole({ currentId, onSelect, onLoad, onRunQuote, onRun
   const scenario = DEMO_SCENARIOS.find((s) => s.id === currentId) ?? DEMO_SCENARIOS[0]
 
   return (
-    <Card className="mb-4 p-5">
-      <CardTitle>Scenario Console</CardTitle>
+    <Card className="p-4">
+      <CardTitle info="Select a pre-built scenario — it loads realistic parameters into the quote form. Run Full Flow executes the entire lifecycle automatically. Watch the State Timeline below to see each step as it happens.">Scenario Console</CardTitle>
 
       {/* Chips */}
       <div className="mb-4 flex flex-wrap gap-1.5">
@@ -24,8 +24,8 @@ export function ScenarioConsole({ currentId, onSelect, onLoad, onRunQuote, onRun
               className={[
                 'cursor-pointer rounded-chip px-3 py-1 text-[0.75rem] font-medium transition-all duration-150',
                 active
-                  ? 'bg-[#0A84FF]/15 text-[#0A84FF] ring-1 ring-[#0A84FF]/30'
-                  : 'bg-white/[0.05] text-white/40 hover:bg-white/[0.08] hover:text-white/65',
+                  ? 'bg-accent/12 text-accent ring-1 ring-accent/25'
+                  : 'bg-surface-elevated text-ink-tertiary hover:bg-surface-muted hover:text-ink-secondary',
               ].join(' ')}
             >
               {s.title}

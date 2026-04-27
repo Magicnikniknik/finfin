@@ -17,7 +17,7 @@ export function OrderOperations({ completeForm, setCompleteForm, cancelForm, set
 
   return (
     <Card className="p-5">
-      <CardTitle>Order Operations</CardTitle>
+      <CardTitle info="Finalise a reserved order. Complete → trade executes, order moves to COMPLETED. Cancel → reservation released, no trade. Both actions use an idempotency key to prevent duplicate operations on retry.">Order Operations</CardTitle>
       <div className="grid grid-cols-2 gap-5 max-[640px]:grid-cols-1">
         <form onSubmit={(e) => { e.preventDefault(); onComplete() }}>
           <FormSection title="Complete order">

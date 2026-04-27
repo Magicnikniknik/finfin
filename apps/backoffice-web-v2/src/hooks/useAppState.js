@@ -58,7 +58,6 @@ export function useAppState() {
   // Apply scenario to forms on mount
   useEffect(() => {
     applyScenarioToForms(getScenarioById(appState.currentScenarioId))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ── helpers ────────────────────────────────────────────────────────────

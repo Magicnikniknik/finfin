@@ -1,0 +1,66 @@
+name: smoke-full-cycle
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  smoke-full-cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install smoke prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz | tar -xz
+          sudo mv grpcurl /usr/local/bin/grpcurl
+          grpcurl --version
+          psql --version
+          docker --version
+
+      - name: Prepare smoke env
+        run: |
+          cp scripts/smoke/env.smoke.example .env.smoke
+          sed -i 's#localhost:5432/smoke#localhost:5432/finfin#g' .env.smoke
+          cat .env.smoke
+
+      - name: Install app dependencies
+        run: |
+          npm --prefix apps/nest-bff ci
+          npm --prefix apps/backoffice-web-v2 ci
+
+      - name: Core test gate
+        run: |
+          go test ./...
+          npm --prefix apps/nest-bff run -s build
+          npm --prefix apps/nest-bff run -s test
+          npm --prefix apps/nest-bff run -s test:e2e
+          npm --prefix apps/backoffice-web-v2 run -s lint
+
+      - name: Smoke full cycle
+        run: |
+          set -a
+          source .env.smoke
+          set +a
+          make smoke-first-green
+
+      - name: Teardown services
+        if: always()
+        run: docker compose -f docker-compose.pilot.yml --env-file .env.smoke down -v

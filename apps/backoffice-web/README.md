@@ -2,6 +2,28 @@
 
 Scenario-driven operator demo UI for production-like sandbox flows on top of Nest BFF.
 
+## Quick explanation (RU)
+
+Это операторская демо-панель для обменных операций:
+1. Получить котировку (`Quote`).
+2. Зарезервировать заявку (`Reserve`).
+3. Завершить (`Complete`) или отменить (`Cancel`) ордер.
+
+### Что нажимать вживую
+
+1. В блоке **Demo Session Panel** нажмите `⟳ Load Sandbox`.
+2. В **Scenario Console** выберите сценарий и нажмите `Load`.
+3. Быстрый показ: нажмите `▶ Run Selected`:
+   - `Happy Path` — успешный сценарий.
+   - `Error Path` — сценарий с ожидаемыми ошибками.
+4. Ручной показ:
+   - `Quote` → `Reserve` → в **Order Operations** выберите `Complete` или `Cancel`.
+5. Что объяснять по экрану:
+   - **KPI bar** — витрина текущих метрик.
+   - **Quote Summary** — параметры и статус котировки.
+   - **Order Summary** — состояние ордера (reserved/completed/cancelled).
+   - **State Timeline** и **Why/Audit** — последовательность действий и причина.
+
 ## Supported HTTP flows
 
 - `POST /quotes/calculate`

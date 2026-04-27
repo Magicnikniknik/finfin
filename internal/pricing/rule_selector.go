@@ -68,6 +68,9 @@ func isVolumeInRuleRange(volume string, rule MarginRule) (bool, error) {
 
 func isVolumeBasisCompatible(inputMode QuoteInputMode, basis VolumeBasis) bool {
 	switch basis {
+	case "":
+		// Backward compatibility for legacy rules without explicit volume_basis.
+		return inputMode == InputModeGive
 	case VolumeBasisGive:
 		return inputMode == InputModeGive
 	case VolumeBasisGet:

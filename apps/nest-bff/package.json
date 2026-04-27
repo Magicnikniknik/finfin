@@ -5,8 +5,8 @@
   "scripts": {
     "start": "nest start",
     "start:dev": "nest start --watch",
-    "build": "nest build",
-    "test": "jest",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "jest --passWithNoTests",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {

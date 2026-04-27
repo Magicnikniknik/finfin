@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: finfin-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-finfin}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - finfin_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-finfin}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  grpc-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.grpc
+    container_name: finfin-grpc
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      GRPC_ADDR: 0.0.0.0:${GRPC_PORT:-9090}
+    ports:
+      - "${GRPC_PORT:-9090}:9090"
+
+  nest-bff:
+    build:
+      context: ./apps/nest-bff
+      dockerfile: Dockerfile
+    container_name: finfin-bff
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      grpc-server:
+        condition: service_started
+    environment:
+      PORT: ${BFF_PORT:-3000}
+      ORDER_GRPC_URL: grpc-server:${GRPC_PORT:-9090}
+      PRICING_GRPC_URL: grpc-server:${GRPC_PORT:-9090}
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:4173}
+    ports:
+      - "${BFF_PORT:-3000}:3000"
+
+  backoffice-web:
+    image: python:3.11-alpine
+    container_name: finfin-backoffice
+    working_dir: /app
+    command: sh -c "python -m http.server ${BACKOFFICE_PORT:-4173}"
+    volumes:
+      - ./apps/backoffice-web:/app:ro
+    ports:
+      - "${BACKOFFICE_PORT:-4173}:4173"
+    restart: unless-stopped
+    depends_on:
+      nest-bff:
+        condition: service_started
+
+volumes:
+  finfin_postgres_data:

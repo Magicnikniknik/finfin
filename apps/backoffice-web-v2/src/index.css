@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+
+  html {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(ellipse 80% 40% at 50% -10%, rgba(196,169,106,0.055), transparent),
+      #0b0b0d;
+    color: #f0eee8;
+  }
+
+  #root { position: relative; z-index: 1; }
+
+  ::selection {
+    background: rgba(196,169,106,0.26);
+    color: #f8f4ec;
+  }
+
+  ::-webkit-scrollbar        { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { background: rgba(240,238,232,0.10); border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(240,238,232,0.20); }
+
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+}
+
+@layer utilities {
+  /* Outer cards — matte surface + gradient border glint */
+  .glass {
+    background:
+      linear-gradient(#131316, #131316) padding-box,
+      linear-gradient(
+        145deg,
+        rgba(255,255,255,0.16) 0%,
+        rgba(255,255,255,0.06) 30%,
+        rgba(255,255,255,0.01) 60%,
+        transparent           100%
+      ) border-box;
+    border: 1px solid transparent;
+  }
+
+  /* Inner panels — no glint, just darker fill */
+  .glass-inner {
+    background: rgba(0,0,0,0.22);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  /* Elevated cards — same glint, lighter base */
+  .glass-elevated {
+    background:
+      linear-gradient(#1c1b20, #1c1b20) padding-box,
+      linear-gradient(
+        145deg,
+        rgba(255,255,255,0.18) 0%,
+        rgba(255,255,255,0.07) 30%,
+        rgba(255,255,255,0.01) 60%,
+        transparent           100%
+      ) border-box;
+    border: 1px solid transparent;
+  }
+
+  .text-primary   { color: #f0eee8; }
+  .text-secondary { color: rgba(240,238,232,0.60); }
+  .text-tertiary  { color: rgba(240,238,232,0.34); }
+  .text-muted     { color: rgba(240,238,232,0.22); }
+
+  .border-subtle { border-color: rgba(255,255,255,0.07); }
+  .border-strong { border-color: rgba(255,255,255,0.13); }
+}

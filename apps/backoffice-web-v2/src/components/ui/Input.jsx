@@ -1,6 +1,6 @@
 import { cn } from '../../lib/utils'
 
-const labelCls = 'text-xs text-white/40 font-normal'
+const labelCls = 'text-xs text-ink-tertiary font-normal'
 
 export function Input({ className, label, ...props }) {
   return (
@@ -8,11 +8,11 @@ export function Input({ className, label, ...props }) {
       {label && <span className={labelCls}>{label}</span>}
       <input
         className={cn(
-          'w-full rounded-input border border-white/[0.08] bg-white/[0.05]',
-          'px-3 py-[9px] text-[0.875rem] text-white/85 placeholder-white/20',
+          'w-full rounded-input border border-line-subtle bg-surface-elevated',
+          'px-3 py-[9px] text-[0.875rem] text-ink-primary placeholder-ink-muted',
           'transition-[border-color,box-shadow] duration-150',
-          'focus:border-[#0A84FF]/50 focus:outline-none focus:ring-2 focus:ring-[#0A84FF]/15',
-          'read-only:cursor-default read-only:text-white/25',
+          'focus:border-accent/40 focus:outline-none focus:ring-2 focus:ring-accent/10',
+          'read-only:cursor-default read-only:text-ink-muted',
           className,
         )}
         {...props}
@@ -27,10 +27,10 @@ export function Select({ className, label, children, ...props }) {
       {label && <span className={labelCls}>{label}</span>}
       <select
         className={cn(
-          'w-full cursor-pointer appearance-none rounded-input border border-white/[0.08] bg-white/[0.05]',
-          'px-3 py-[9px] text-[0.875rem] text-white/85',
+          'w-full cursor-pointer appearance-none rounded-input border border-line-subtle bg-surface-elevated',
+          'px-3 py-[9px] text-[0.875rem] text-ink-primary',
           'transition-[border-color,box-shadow] duration-150',
-          'focus:border-[#0A84FF]/50 focus:outline-none focus:ring-2 focus:ring-[#0A84FF]/15',
+          'focus:border-accent/40 focus:outline-none focus:ring-2 focus:ring-accent/10',
           className,
         )}
         {...props}
@@ -43,9 +43,9 @@ export function Select({ className, label, children, ...props }) {
 
 export function SummaryRow({ label, value }) {
   return (
-    <div className="flex flex-col gap-1 rounded-input bg-white/[0.03] px-3 py-2.5">
+    <div className="flex flex-col gap-1 rounded-inner glass-inner px-3 py-2.5">
       <span className={labelCls}>{label}</span>
-      <span className="break-all text-[0.875rem] text-white/80 tabular-nums">{value || '—'}</span>
+      <span className="break-all text-[0.875rem] text-ink-primary tabular-nums">{value || '—'}</span>
     </div>
   )
 }

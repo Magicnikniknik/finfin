@@ -7,7 +7,7 @@ export function QuoteCalculator({ form, setForm, onSubmit, onCopyId, onUseInRese
 
   return (
     <Card className="p-5">
-      <CardTitle>Quote Calculator</CardTitle>
+      <CardTitle info="Request a price quote from the pricing engine. Give/Get currencies define trade direction. Amount is in the Give currency. The quote has a short TTL — reserve quickly after receiving it. Use 'Use in Reserve' to carry the Quote ID forward.">Quote Calculator</CardTitle>
       <form onSubmit={(e) => { e.preventDefault(); onSubmit() }} className="grid grid-cols-2 gap-4 max-[640px]:grid-cols-1">
         <Input label="Office ID"       value={form.office_id}         onChange={set('office_id')}         required />
         <Select label="Input mode"     value={form.input_mode}        onChange={set('input_mode')}>

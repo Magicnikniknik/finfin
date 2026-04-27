@@ -85,17 +85,17 @@ func TestOrderServer_ReserveOrder_HappyPath(t *testing.T) {
 		t.Fatalf("ReserveOrder returned error: %v", err)
 	}
 
-	if resp.GetOrderId() != "order-123" {
-		t.Fatalf("expected order id order-123, got %q", resp.GetOrderId())
+	if resp.OrderId != "order-123" {
+		t.Fatalf("expected order id order-123, got %q", resp.OrderId)
 	}
-	if resp.GetStatus() != orderv1.OrderStatus_RESERVED {
-		t.Fatalf("expected RESERVED status, got %v", resp.GetStatus())
+	if resp.Status != orderv1.OrderStatus_RESERVED {
+		t.Fatalf("expected RESERVED status, got %v", resp.Status)
 	}
-	if resp.GetExpiresAtTs() != expiresAt.Unix() {
-		t.Fatalf("expected expires_at_ts %d, got %d", expiresAt.Unix(), resp.GetExpiresAtTs())
+	if resp.ExpiresAtTs != expiresAt.Unix() {
+		t.Fatalf("expected expires_at_ts %d, got %d", expiresAt.Unix(), resp.ExpiresAtTs)
 	}
-	if resp.GetVersion() != 1 {
-		t.Fatalf("expected version 1, got %d", resp.GetVersion())
+	if resp.Version != 1 {
+		t.Fatalf("expected version 1, got %d", resp.Version)
 	}
 
 	if app.lastReserveCmd.TenantID != "tenant-1" ||
@@ -140,10 +140,10 @@ func TestOrderServer_CompleteOrder_HappyPath(t *testing.T) {
 		t.Fatalf("CompleteOrder returned error: %v", err)
 	}
 
-	if resp.GetOrderId() != "order-456" ||
-		resp.GetStatus() != orderv1.OrderStatus_COMPLETED ||
-		resp.GetCompletedAtTs() != completedAt.Unix() ||
-		resp.GetVersion() != 2 {
+	if resp.OrderId != "order-456" ||
+		resp.Status != orderv1.OrderStatus_COMPLETED ||
+		resp.CompletedAtTs != completedAt.Unix() ||
+		resp.Version != 2 {
 		t.Fatalf("unexpected complete response: %+v", resp)
 	}
 
@@ -180,9 +180,9 @@ func TestOrderServer_CancelOrder_HappyPath(t *testing.T) {
 		t.Fatalf("CancelOrder returned error: %v", err)
 	}
 
-	if resp.GetOrderId() != "order-789" ||
-		resp.GetStatus() != orderv1.OrderStatus_CANCELLED ||
-		resp.GetVersion() != 2 {
+	if resp.OrderId != "order-789" ||
+		resp.Status != orderv1.OrderStatus_CANCELLED ||
+		resp.Version != 2 {
 		t.Fatalf("unexpected cancel response: %+v", resp)
 	}
 

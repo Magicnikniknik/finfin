@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	orderv1 "finfin/gen/exchange/order/v1"
 	"finfin/internal/app"
@@ -153,6 +152,5 @@ func validReserveReq() *orderv1.ReserveOrderRequest {
 				Network: "BTC",
 			},
 		},
-		ExpiresAtTs: time.Now().Add(5 * time.Minute).Unix(),
 	}
 }

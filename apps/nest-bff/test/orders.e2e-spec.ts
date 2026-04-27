@@ -1,6 +1,7 @@
 import { ForbiddenException, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import request from 'supertest';
+import type { NextFunction, Response } from 'express';
+import request = require('supertest');
 
 import { JwtAuthGuard } from '../src/auth/jwt-auth.guard';
 import { RolesGuard } from '../src/auth/guards/roles.guard';
@@ -34,6 +35,9 @@ describe('OrdersController (e2e)', () => {
   const rolesGuardMock = { canActivate: jest.fn(() => true) };
 
   beforeAll(async () => {
+    jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockReturnValue(true as any);
+    jest.spyOn(RolesGuard.prototype, 'canActivate').mockReturnValue(true as any);
+
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [OrdersController],
       providers: [
@@ -61,7 +65,7 @@ describe('OrdersController (e2e)', () => {
       }),
     );
 
-    app.use((req: any, _res, next) => {
+    app.use((req: any, _res: Response, next: NextFunction) => {
       req.user = {
         sub: 'u-1',
         tenant_id: 'tenant-1',

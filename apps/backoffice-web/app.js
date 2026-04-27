@@ -11,6 +11,15 @@ const orderStatusBadge = document.getElementById('orderStatusBadge');
 const scenarioStatus = document.getElementById('scenarioStatus');
 const presentationBadge = document.getElementById('presentationBadge');
 const debugPanel = document.getElementById('debugPanel');
+const rawResponsePanel = document.getElementById('rawResponsePanel');
+const modePresentationBtn = document.getElementById('modePresentation');
+const modeDebugBtn = document.getElementById('modeDebug');
+const orderModeCompleteBtn = document.getElementById('orderModeComplete');
+const orderModeCancelBtn = document.getElementById('orderModeCancel');
+const quoteInputGiveBtn = document.getElementById('quoteInputGive');
+const quoteInputGetBtn = document.getElementById('quoteInputGet');
+const demoHappyModeBtn = document.getElementById('demoHappyMode');
+const demoErrorModeBtn = document.getElementById('demoErrorMode');
 
 const kpis = {
   activeQuotes: document.getElementById('kpiActiveQuotes'),
@@ -84,6 +93,9 @@ const state = {
     staleAlerts: 0,
     grossMargin: 0,
   },
+  orderActionMode: 'complete',
+  quoteInputMode: 'GIVE',
+  demoFlowMode: 'happy',
 };
 
 init();
@@ -132,9 +144,22 @@ function init() {
   document.getElementById('runFullFlow').addEventListener('click', runFullFlow);
   document.getElementById('resetDemoState').addEventListener('click', resetDemoState);
   document.getElementById('loadSandboxDefaults').addEventListener('click', loadProductionLikeSandboxDefaults);
-  document.getElementById('runHappyDemo').addEventListener('click', runHappyDemo);
-  document.getElementById('runErrorDemo').addEventListener('click', runErrorDemo);
-  document.getElementById('togglePresentationMode').addEventListener('click', togglePresentationMode);
+  document.getElementById('runSelectedDemo').addEventListener('click', () => {
+    if (state.demoFlowMode === 'error') return runErrorDemo();
+    return runHappyDemo();
+  });
+  modePresentationBtn.addEventListener('click', () => setPresentationMode(true));
+  modeDebugBtn.addEventListener('click', () => setPresentationMode(false));
+  orderModeCompleteBtn.addEventListener('click', () => setOrderActionMode('complete'));
+  orderModeCancelBtn.addEventListener('click', () => setOrderActionMode('cancel'));
+  quoteInputGiveBtn.addEventListener('click', () => setQuoteInputMode('GIVE'));
+  quoteInputGetBtn.addEventListener('click', () => setQuoteInputMode('GET'));
+  demoHappyModeBtn.addEventListener('click', () => setDemoFlowMode('happy'));
+  demoErrorModeBtn.addEventListener('click', () => setDemoFlowMode('error'));
+
+  setOrderActionMode(state.orderActionMode);
+  setQuoteInputMode(quoteForm.elements.input_mode.value || state.quoteInputMode);
+  setDemoFlowMode(state.demoFlowMode);
 }
 
 function renderScenarioChips() {
@@ -143,7 +168,7 @@ function renderScenarioChips() {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `scenario-chip ${scenario.id === state.currentScenarioId ? 'active' : ''}`;
-    button.textContent = scenario.title;
+    button.innerHTML = `<span class="icon">${scenarioIcon(scenario.id)}</span><span>${scenario.title}</span>`;
     button.addEventListener('click', () => {
       state.currentScenarioId = scenario.id;
       applyScenarioToForms(scenario);
@@ -169,7 +194,7 @@ function applyScenarioToForms(scenario) {
   quoteForm.elements.office_id.value = scenario.quote.office_id;
   quoteForm.elements.give_currency_id.value = scenario.quote.give_currency_id;
   quoteForm.elements.get_currency_id.value = scenario.quote.get_currency_id;
-  quoteForm.elements.input_mode.value = scenario.quote.input_mode;
+  setQuoteInputMode(scenario.quote.input_mode);
   quoteForm.elements.amount.value = scenario.quote.amount;
 
   reserveForm.elements.office_id.value = scenario.quote.office_id;
@@ -208,7 +233,7 @@ async function runQuote() {
     state.lastError = null;
     renderQuoteSummary(state.currentQuote);
     reserveForm.elements.quote_id.value = state.currentQuote.quote_id;
-    setBadge(quoteStatusBadge, state.currentQuote.status || 'active');
+    renderQuotePill(state.currentQuote.status || 'active');
     if ((state.currentQuote.status || 'active') === 'active') {
       state.metrics.activeQuotes += 1;
     }
@@ -264,7 +289,7 @@ async function runReserve() {
     if (state.currentQuote) {
       state.currentQuote.status = 'consumed';
       quoteSummary.status.textContent = 'consumed';
-      setBadge(quoteStatusBadge, 'consumed');
+      renderQuotePill('ready');
     }
     state.lastError = null;
     renderOrderSummary();
@@ -274,11 +299,11 @@ async function runReserve() {
   } else {
     state.lastError = extractError(json);
     if (state.lastError.message.toLowerCase().includes('expired')) {
-      setBadge(quoteStatusBadge, 'expired');
+      renderQuotePill('expired');
       quoteSummary.status.textContent = 'expired';
     }
     if (state.lastError.message.toLowerCase().includes('consumed')) {
-      setBadge(quoteStatusBadge, 'consumed');
+      renderQuotePill('failed');
       quoteSummary.status.textContent = 'consumed';
     }
   }
@@ -420,9 +445,33 @@ function loadProductionLikeSandboxDefaults() {
   persistState();
 }
 
-function togglePresentationMode() {
-  state.presentationMode = !state.presentationMode;
+function setPresentationMode(on) {
+  state.presentationMode = Boolean(on);
   renderPresentationMode();
+  persistState();
+}
+
+function setOrderActionMode(mode) {
+  state.orderActionMode = mode === 'cancel' ? 'cancel' : 'complete';
+  completeForm.classList.toggle('hidden', state.orderActionMode !== 'complete');
+  cancelForm.classList.toggle('hidden', state.orderActionMode !== 'cancel');
+  orderModeCompleteBtn.classList.toggle('active', state.orderActionMode === 'complete');
+  orderModeCancelBtn.classList.toggle('active', state.orderActionMode === 'cancel');
+  persistState();
+}
+
+function setQuoteInputMode(mode) {
+  state.quoteInputMode = mode === 'GET' ? 'GET' : 'GIVE';
+  quoteForm.elements.input_mode.value = state.quoteInputMode;
+  quoteInputGiveBtn.classList.toggle('active', state.quoteInputMode === 'GIVE');
+  quoteInputGetBtn.classList.toggle('active', state.quoteInputMode === 'GET');
+  persistState();
+}
+
+function setDemoFlowMode(mode) {
+  state.demoFlowMode = mode === 'error' ? 'error' : 'happy';
+  demoHappyModeBtn.classList.toggle('active', state.demoFlowMode === 'happy');
+  demoErrorModeBtn.classList.toggle('active', state.demoFlowMode === 'error');
   persistState();
 }
 
@@ -470,6 +519,7 @@ function renderQuoteSummary(quote) {
   quoteSummary.status.textContent = quote.status || 'active';
   quoteSummary.give.textContent = `${quote.give_amount} ${currencyMeta(quote.give_currency_id).label}`;
   quoteSummary.get.textContent = `${quote.get_amount} ${currencyMeta(quote.get_currency_id).label}`;
+  renderQuotePill(quote.status || 'active');
 }
 
 function renderOrderSummary() {
@@ -485,7 +535,7 @@ function renderOrderSummary() {
   orderSummary.heldCurrency.textContent = quoteSummary.get.textContent;
   orderSummary.heldAmount.textContent = reserveForm.elements.get_amount.value || '—';
 
-  setBadge(orderStatusBadge, order.status || 'neutral');
+  renderOrderPill(order.status || 'pending');
 
   completeForm.elements.order_id.value = order.order_id || completeForm.elements.order_id.value;
   cancelForm.elements.order_id.value = order.order_id || cancelForm.elements.order_id.value;
@@ -531,7 +581,7 @@ function renderTimeline() {
 
   [...timelineRoot.querySelectorAll('li')].forEach((node) => {
     const step = node.getAttribute('data-step');
-    node.textContent = steps[step];
+    node.innerHTML = `<span class="timeline-line-main">${steps[step]}</span><span class="timeline-meta">step: ${step}</span>`;
     node.className = classes[step] || 'neutral';
   });
 }
@@ -539,22 +589,28 @@ function renderTimeline() {
 function renderWhyAudit() {
   const scenario = getScenarioById(state.currentScenarioId);
   const rows = [
-    ['Scenario', scenario.title],
-    ['Applied rule', state.currentQuote?.applied_rule || 'n/a'],
-    ['Margin / fee', `${state.currentQuote?.base_rate || '—'} -> ${state.currentQuote?.fixed_rate || '—'} / fee ${state.currentQuote?.fee_amount || '—'}`],
-    ['Held asset', quoteSummary.get.textContent || '—'],
-    ['Quote source', sourceLabel(state.currentQuote?.source_name)],
-    ['Last action', state.lastAction],
-    ['Last error', state.lastError ? `${state.lastError.code}: ${state.lastError.message}` : 'none'],
-    ['Cashier', cashierLabel(asTrimmed(fields.cashierId.value))],
-    ['HTTP status', statusBadge.textContent],
+    { symbol: '◎', label: 'Scenario', value: scenario.title },
+    { symbol: '⚙', label: 'Applied rule', value: state.currentQuote?.applied_rule || 'n/a' },
+    { symbol: '％', label: 'Margin / fee', value: `${state.currentQuote?.base_rate || '—'} -> ${state.currentQuote?.fixed_rate || '—'} / fee ${state.currentQuote?.fee_amount || '—'}` },
+    { symbol: '◈', label: 'Held asset', value: quoteSummary.get.textContent || '—' },
+    { symbol: '⌁', label: 'Quote source', value: sourceLabel(state.currentQuote?.source_name) },
+    { symbol: '→', label: 'Last action', value: state.lastAction },
+    { symbol: '!', label: 'Last error', value: state.lastError ? `${state.lastError.code}: ${state.lastError.message}` : 'none', danger: true },
+    { symbol: '👤', label: 'Cashier', value: cashierLabel(asTrimmed(fields.cashierId.value)) },
+    { symbol: '#', label: 'HTTP status', value: statusBadge.textContent },
   ];
 
   auditRows.innerHTML = '';
-  rows.forEach(([label, value]) => {
+  rows.forEach((rowData) => {
     const row = document.createElement('div');
     row.className = 'audit-row';
-    row.innerHTML = `<span>${label}</span><strong>${value || '—'}</strong>`;
+    row.innerHTML = `
+      <span class="audit-line-main">
+        <span class="insight-symbol ${rowData.danger ? 'danger' : ''}">${rowData.symbol}</span>
+        ${rowData.label}
+      </span>
+      <strong class="audit-meta">${rowData.value || '—'}</strong>
+    `;
     auditRows.appendChild(row);
   });
 }
@@ -570,7 +626,11 @@ function renderKpiBar() {
 
 function renderPresentationMode() {
   const on = state.presentationMode;
+  document.body.classList.toggle('presentation', on);
   debugPanel.style.display = on ? 'none' : '';
+  rawResponsePanel.open = !on && rawResponsePanel.open;
+  modePresentationBtn.classList.toggle('active', on);
+  modeDebugBtn.classList.toggle('active', !on);
   presentationBadge.className = `status ${on ? 'ok' : 'neutral'}`;
   presentationBadge.textContent = `presentation mode: ${on ? 'on' : 'off'}`;
 }
@@ -590,13 +650,13 @@ function applyQuoteFailureToUI(error) {
   const message = error.message.toLowerCase();
 
   if (code.includes('stale') || message.includes('stale')) {
-    setBadge(quoteStatusBadge, 'stale');
+    renderQuotePill('expired');
     quoteSummary.status.textContent = 'stale';
   } else if (code.includes('expired') || message.includes('expired')) {
-    setBadge(quoteStatusBadge, 'expired');
+    renderQuotePill('expired');
     quoteSummary.status.textContent = 'expired';
   } else {
-    setBadge(quoteStatusBadge, 'warn');
+    renderQuotePill('failed');
     quoteSummary.status.textContent = 'rejected';
   }
 }
@@ -702,10 +762,8 @@ function clearSummaries() {
   Object.values(orderSummary).forEach((node) => {
     node.textContent = '—';
   });
-  setBadge(quoteStatusBadge, 'neutral');
-  quoteStatusBadge.textContent = 'no quote';
-  setBadge(orderStatusBadge, 'neutral');
-  orderStatusBadge.textContent = 'no order';
+  renderQuotePill('draft');
+  renderOrderPill('pending');
 }
 
 function setStatus(kind, text) {
@@ -725,6 +783,58 @@ function mapStatusClass(status) {
   if (value.includes('consumed') || value.includes('reserved') || value.includes('cancelled') || value.includes('warn') || value.includes('stale')) return 'warn';
   if (value.includes('expired') || value.includes('error') || value.includes('failed') || value.includes('err')) return 'err';
   return 'neutral';
+}
+
+function renderQuotePill(status) {
+  const value = String(status || '').toLowerCase();
+  if (!status || value === 'neutral') {
+    quoteStatusBadge.className = 'status neutral';
+    quoteStatusBadge.textContent = '● Draft';
+    return;
+  }
+  if (value.includes('active') || value.includes('ready')) {
+    quoteStatusBadge.className = 'status ok';
+    quoteStatusBadge.textContent = '● Ready';
+    return;
+  }
+  if (value.includes('expired') || value.includes('stale')) {
+    quoteStatusBadge.className = 'status warn';
+    quoteStatusBadge.textContent = '● Expired';
+    return;
+  }
+  if (value.includes('failed') || value.includes('error') || value.includes('rejected')) {
+    quoteStatusBadge.className = 'status err';
+    quoteStatusBadge.textContent = '● Failed';
+    return;
+  }
+  quoteStatusBadge.className = 'status neutral';
+  quoteStatusBadge.textContent = '● Draft';
+}
+
+function renderOrderPill(status) {
+  const value = String(status || '').toLowerCase();
+  if (value.includes('completed')) {
+    orderStatusBadge.className = 'status ok';
+    orderStatusBadge.textContent = 'Order · Completed';
+    return;
+  }
+  if (value.includes('reserved')) {
+    orderStatusBadge.className = 'status warn';
+    orderStatusBadge.textContent = 'Order · Reserved';
+    return;
+  }
+  if (value.includes('cancelled')) {
+    orderStatusBadge.className = 'status err';
+    orderStatusBadge.textContent = 'Order · Cancelled';
+    return;
+  }
+  if (value.includes('failed') || value.includes('error')) {
+    orderStatusBadge.className = 'status err';
+    orderStatusBadge.textContent = 'Order · Failed';
+    return;
+  }
+  orderStatusBadge.className = 'status neutral';
+  orderStatusBadge.textContent = 'Order · Pending';
 }
 
 function saveConfig() {
@@ -764,6 +874,9 @@ function persistState() {
       lastError: state.lastError,
       presentationMode: state.presentationMode,
       metrics: state.metrics,
+      orderActionMode: state.orderActionMode,
+      quoteInputMode: state.quoteInputMode,
+      demoFlowMode: state.demoFlowMode,
     }),
   );
 }
@@ -780,18 +893,36 @@ function loadState() {
     state.lastError = saved.lastError || null;
     state.presentationMode = Boolean(saved.presentationMode);
     state.metrics = saved.metrics || state.metrics;
+    state.orderActionMode = saved.orderActionMode || state.orderActionMode;
+    state.quoteInputMode = saved.quoteInputMode || state.quoteInputMode;
+    state.demoFlowMode = saved.demoFlowMode || state.demoFlowMode;
     if (state.currentQuote) {
       renderQuoteSummary(state.currentQuote);
-      setBadge(quoteStatusBadge, state.currentQuote.status || 'active');
+      renderQuotePill(state.currentQuote.status || 'active');
     }
     if (state.currentOrder) {
       renderOrderSummary();
     }
     renderKpiBar();
     renderPresentationMode();
+    setOrderActionMode(state.orderActionMode);
+    setQuoteInputMode(state.quoteInputMode);
+    setDemoFlowMode(state.demoFlowMode);
   } catch {
     // ignore invalid saved state
   }
+}
+
+function scenarioIcon(id) {
+  const icons = {
+    'buy-100-usdt': '↗',
+    'get-10000-thb': '฿',
+    'vip-tier': '★',
+    'stale-rate': '⏱',
+    'expired-quote': '⌛',
+    'insufficient-liquidity': '⚠',
+  };
+  return icons[id] || '•';
 }
 
 function renderLocalError(message) {

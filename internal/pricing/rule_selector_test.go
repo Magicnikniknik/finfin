@@ -11,7 +11,7 @@ func TestSelectBestMarginRule_PriorityAndOffice(t *testing.T) {
 		{ID: "g1", OfficeID: nil, Side: SideSell, MinVolume: "0", MaxVolume: nil, Priority: 200, CreatedAt: time.Unix(1, 0)},
 		{ID: "o1", OfficeID: &office, Side: SideSell, MinVolume: "0", MaxVolume: nil, Priority: 100, CreatedAt: time.Unix(2, 0)},
 	}
-	got, err := SelectBestMarginRule(rules, CalculateQuoteCommand{}, SideSell, "50")
+	got, err := SelectBestMarginRule(rules, CalculateQuoteCommand{InputMode: InputModeGive}, SideSell, "50")
 	if err != nil {
 		t.Fatalf("SelectBestMarginRule err = %v", err)
 	}

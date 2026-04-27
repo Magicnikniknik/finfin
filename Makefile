@@ -1,4 +1,4 @@
-.PHONY: db-up db-down migrate migrate-up proto test test-integration run-ttl run-outbox smoke-preflight smoke-preflight-db smoke-bootstrap seed-smoke run-services smoke-full-cycle smoke-seed-pricing smoke-seed-demo smoke-seed-fast smoke-seed-reserve smoke-reset smoke-check-short smoke-check-full smoke-reserve smoke-complete smoke-cancel pilot-up pilot-down pilot-bootstrap pilot-smoke
+.PHONY: db-up db-down migrate migrate-up proto test test-integration run-ttl run-outbox smoke-preflight smoke-preflight-db smoke-bootstrap seed-smoke run-services smoke-full-cycle smoke-full-cycle-assertive smoke-first-green smoke-seed-pricing smoke-seed-demo smoke-seed-fast smoke-seed-reserve smoke-reset smoke-check-short smoke-check-full smoke-reserve smoke-complete smoke-cancel pilot-up pilot-down pilot-bootstrap pilot-smoke
 
 db-up:
 	docker compose up -d postgres
@@ -42,7 +42,6 @@ run-ttl:
 run-outbox:
 	go run ./cmd/outbox-publisher
 
-
 smoke-preflight:
 	./scripts/smoke/preflight.sh
 
@@ -65,6 +64,22 @@ run-services:
 
 smoke-full-cycle:
 	./scripts/smoke/full_cycle.sh
+
+smoke-full-cycle-assertive:
+	./scripts/smoke/full_cycle_assertive.sh
+
+smoke-first-green:
+	@set -e; \
+	: "$${DATABASE_URL:?DATABASE_URL is required}"; \
+	: "$${HTTP_BASE_URL:?HTTP_BASE_URL is required}"; \
+	: "$${GRPC_ADDR:?GRPC_ADDR is required}"; \
+	echo "== smoke-first-green: run-services -> preflight-db -> migrate -> seed -> preflight -> assertive"; \
+	$(MAKE) run-services; \
+	$(MAKE) smoke-preflight-db; \
+	$(MAKE) migrate-up; \
+	$(MAKE) seed-smoke; \
+	$(MAKE) smoke-preflight; \
+	$(MAKE) smoke-full-cycle-assertive
 
 smoke-seed-pricing:
 	@command -v psql >/dev/null 2>&1 || (echo "psql is required to run smoke SQL scripts" && exit 1)
@@ -109,7 +124,6 @@ smoke-complete:
 
 smoke-cancel:
 	./scripts/smoke/cancel.sh
-
 
 pilot-up:
 	docker compose -f docker-compose.pilot.yml --env-file .env up -d --build

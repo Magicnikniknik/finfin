@@ -127,6 +127,21 @@ button:hover { border-color: #6b7280; }
 
 .scenario-console { margin-bottom: 16px; }
 .demo-session { margin-bottom: 16px; }
+.quickstart { margin-bottom: 16px; }
+.quickstart-lead,
+.quickstart-note {
+  margin: 8px 0;
+  color: #cbd5e1;
+  line-height: 1.45;
+}
+.quickstart-list {
+  margin: 8px 0 4px 20px;
+  display: grid;
+  gap: 8px;
+}
+.quickstart-list ul {
+  margin: 6px 0 0 16px;
+}
 .scenario-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .scenario-chip {
   border-radius: 999px;

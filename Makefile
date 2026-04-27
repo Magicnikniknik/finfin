@@ -42,7 +42,6 @@ run-ttl:
 run-outbox:
 	go run ./cmd/outbox-publisher
 
-
 smoke-preflight:
 	./scripts/smoke/preflight.sh
 
@@ -125,7 +124,6 @@ smoke-complete:
 
 smoke-cancel:
 	./scripts/smoke/cancel.sh
-
 
 pilot-up:
 	docker compose -f docker-compose.pilot.yml --env-file .env up -d --build

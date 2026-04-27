@@ -69,20 +69,31 @@ For local "first real green" run with infra, use one command:
 make smoke-first-green
 ```
 
-`smoke-first-green` fails fast if `DATABASE_URL`, `HTTP_BASE_URL`, or `GRPC_ADDR` is missing, then runs:
-1. `make run-services`
-2. `make smoke-preflight-db`
-3. `make migrate-up`
-4. `make seed-smoke`
-5. `make smoke-preflight`
-6. `make smoke-full-cycle-assertive`
+smoke-first-green fails fast if DATABASE_URL, HTTP_BASE_URL, or GRPC_ADDR is missing, then runs:
+
+```bash
+make run-services
+
+make smoke-preflight-db
+
+make migrate-up
+
+make seed-smoke
+
+make smoke-preflight
+
+make smoke-full-cycle-assertive
+```
 
 GitHub Actions workflow:
-- `.github/workflows/smoke-full-cycle.yml`
+
+```text
+.github/workflows/smoke-full-cycle.yml
+```
 
 ## Smoke full-cycle troubleshooting
 
-### `docker: command not found`
+### docker: command not found
 
 Docker is not available on the runner/machine.
 
@@ -94,7 +105,7 @@ docker --version
 
 Use a runner with Docker support (or enable Docker service).
 
-### `psql: command not found`
+### psql: command not found
 
 PostgreSQL client is missing.
 
@@ -109,7 +120,7 @@ sudo apt-get update
 sudo apt-get install -y postgresql-client
 ```
 
-### `grpcurl: command not found`
+### grpcurl: command not found
 
 gRPC smoke dependency is missing.
 
@@ -121,7 +132,7 @@ grpcurl --version
 
 Install via Homebrew or release artifact (same way as CI workflow).
 
-### `DATABASE_URL is required`
+### DATABASE_URL is required
 
 Smoke environment is not loaded.
 
@@ -133,7 +144,7 @@ source .env.smoke
 echo "$DATABASE_URL"
 ```
 
-### `database is not reachable`
+### database is not reachable
 
 Postgres is not ready/running or URL points to wrong host/port.
 
@@ -144,9 +155,9 @@ make smoke-preflight-db
 psql "$DATABASE_URL" -c "select 1;"
 ```
 
-### `HTTP endpoint is not reachable`
+### HTTP endpoint is not reachable
 
-HTTP service is not running or `HTTP_BASE_URL` is incorrect.
+HTTP service is not running or HTTP_BASE_URL is incorrect.
 
 Fix:
 
@@ -155,9 +166,9 @@ make run-services
 curl -i "$HTTP_BASE_URL/healthz"
 ```
 
-### `gRPC endpoint is not reachable`
+### gRPC endpoint is not reachable
 
-gRPC service is not running or `GRPC_ADDR` is incorrect.
+gRPC service is not running or GRPC_ADDR is incorrect.
 
 Fix:
 
@@ -165,7 +176,7 @@ Fix:
 grpcurl -plaintext "$GRPC_ADDR" list
 ```
 
-### `smoke-full-cycle` fails after reserve/complete
+### smoke-full-cycle fails after reserve/complete
 
 Service is up but scenario does not match seeded data or current env values.
 
@@ -176,4 +187,4 @@ make seed-smoke
 make smoke-full-cycle
 ```
 
-Also verify `TENANT_ID`, `CASHIER_ID`, and `CLIENT_REF` in `.env.smoke`.
+Also verify TENANT_ID, CASHIER_ID, and CLIENT_REF in .env.smoke.

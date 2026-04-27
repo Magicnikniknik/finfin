@@ -9,7 +9,7 @@ export function QuoteSummary({ data }) {
   return (
     <Card className="p-5">
       <div className="mb-4 flex items-center justify-between gap-2">
-        <CardTitle className="mb-0 border-0 pb-0">Quote Summary</CardTitle>
+        <CardTitle className="mb-0 border-0 pb-0" info="Pricing engine response. Key fields to watch: base_rate (raw market price), client_rate (after margin), fee (operator charge). Badge shows quote status — green means still valid and reservable.">Quote Summary</CardTitle>
         <Badge variant={variant}>{data?.status ?? 'no quote'}</Badge>
       </div>
       <div className="grid grid-cols-2 gap-2 max-[640px]:grid-cols-1">

@@ -16,7 +16,7 @@ export function ReserveWorkspace({ form, setForm, onSubmit }) {
 
   return (
     <Card className="p-5">
-      <CardTitle>Reserve</CardTitle>
+      <CardTitle info="Lock in the quoted price by creating a reserve order. Requires a valid Quote ID from the summary above. After reserving, the order is RESERVED — funds are earmarked. Proceed to Order Operations to complete or cancel.">Reserve</CardTitle>
       <form onSubmit={(e) => { e.preventDefault(); onSubmit() }} className="space-y-4">
         <div className="grid grid-cols-2 gap-4 max-[640px]:grid-cols-1">
           <Input label="Idempotency key" value={form.idempotency_key} onChange={set('idempotency_key')} required />

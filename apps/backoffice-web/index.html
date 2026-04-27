@@ -12,18 +12,28 @@
   </head>
   <body>
     <header>
-      <h1>Backoffice Sandbox UI</h1>
-      <p>Scenario-driven operator demo console for pricing + orders.</p>
-      <span class="mode-badge">Production-like Sandbox</span>
+      <div class="topbar">
+        <div>
+          <h1>Backoffice Sandbox UI</h1>
+          <p>Scenario-driven operator demo console for pricing + orders.</p>
+        </div>
+        <div class="topbar-actions">
+          <span class="mode-badge">Production-like Sandbox</span>
+          <div class="segmented" role="group" aria-label="UI mode">
+            <button type="button" id="modePresentation" class="segmented-btn active">Presentation</button>
+            <button type="button" id="modeDebug" class="segmented-btn">Debug</button>
+          </div>
+        </div>
+      </div>
     </header>
 
     <section class="kpi-bar">
-      <article class="kpi-card"><span>Active quotes</span><strong id="kpiActiveQuotes">0</strong></article>
-      <article class="kpi-card"><span>Reserved orders</span><strong id="kpiReservedOrders">0</strong></article>
-      <article class="kpi-card"><span>Completed today</span><strong id="kpiCompletedToday">0</strong></article>
-      <article class="kpi-card"><span>Cancelled today</span><strong id="kpiCancelledToday">0</strong></article>
-      <article class="kpi-card"><span>Estimated margin</span><strong id="kpiGrossMargin">—</strong></article>
-      <article class="kpi-card"><span>Stale alerts</span><strong id="kpiStaleAlerts">0</strong></article>
+      <article class="kpi-card"><span class="icon-label">🧾 Active quotes</span><strong id="kpiActiveQuotes">0</strong></article>
+      <article class="kpi-card"><span class="icon-label">🔒 Reserved orders</span><strong id="kpiReservedOrders">0</strong></article>
+      <article class="kpi-card"><span class="icon-label">✅ Completed today</span><strong id="kpiCompletedToday">0</strong></article>
+      <article class="kpi-card"><span class="icon-label">✖ Cancelled today</span><strong id="kpiCancelledToday">0</strong></article>
+      <article class="kpi-card"><span class="icon-label">💹 Estimated margin</span><strong id="kpiGrossMargin">—</strong></article>
+      <article class="kpi-card"><span class="icon-label">⚠ Stale alerts</span><strong id="kpiStaleAlerts">0</strong></article>
     </section>
 
     <section class="config card">
@@ -37,17 +47,20 @@
           tenant_id
           <input id="tenantId" placeholder="11111111-1111-1111-1111-111111111111" />
         </label>
-      </div>
-      <div class="grid two">
-        <label>
-          client_ref
-          <input id="clientRef" placeholder="client_demo_console" />
-        </label>
         <label>
           cashier
           <input id="cashierId" value="cashier_bkk_01" />
         </label>
       </div>
+      <details class="collapsible">
+        <summary>Advanced</summary>
+        <div class="grid one">
+          <label>
+            client_ref
+            <input id="clientRef" placeholder="client_demo_console" />
+          </label>
+        </div>
+      </details>
     </section>
 
     <section class="demo-session card">
@@ -55,54 +68,73 @@
         <h2>Demo Session Panel</h2>
         <span id="presentationBadge" class="status neutral">presentation mode: off</span>
       </div>
-      <div class="actions">
-        <button type="button" id="loadSandboxDefaults">Load Production-like Sandbox</button>
-        <button type="button" id="resetDemoState">Reset Demo State</button>
-        <button type="button" id="runHappyDemo">Happy Path Demo</button>
-        <button type="button" id="runErrorDemo">Error Path Demo</button>
-        <button type="button" id="togglePresentationMode">Hide Debug / Show Debug</button>
-      </div>
-    </section>
-
-    <section class="scenario-console card">
       <div class="summary-header">
-        <h2>Scenario Console</h2>
-        <span id="scenarioStatus" class="status neutral">no scenario selected</span>
-      </div>
-      <div id="scenarioChips" class="scenario-chips"></div>
-      <div class="scenario-details">
-        <p><span>Scenario</span><strong id="scenarioTitle">—</strong></p>
-        <p><span>What it demonstrates</span><strong id="scenarioDescription">—</strong></p>
-        <p><span>Expected result</span><strong id="scenarioExpected">—</strong></p>
-      </div>
-      <div class="scenario-actions">
-        <button type="button" id="loadScenario">Load Scenario</button>
-        <button type="button" id="runQuote">Run Quote</button>
-        <button type="button" id="runReserve">Run Reserve</button>
-        <button type="button" id="runFullFlow">Run Full Flow</button>
+        <div class="segmented" role="group" aria-label="Demo flow mode">
+          <button type="button" id="demoHappyMode" class="segmented-btn active">Happy Path</button>
+          <button type="button" id="demoErrorMode" class="segmented-btn">Error Path</button>
+        </div>
+        <div class="actions">
+          <button type="button" id="runSelectedDemo">▶ Run Selected</button>
+          <button type="button" id="loadSandboxDefaults">⟳ Load Sandbox</button>
+          <button type="button" id="resetDemoState">↺ Reset</button>
+        </div>
       </div>
     </section>
 
     <main class="workspace">
       <section class="left-column">
+        <section class="scenario-console card">
+          <div class="summary-header">
+            <h2>Scenario Console</h2>
+            <span id="scenarioStatus" class="status neutral">no scenario selected</span>
+          </div>
+          <div id="scenarioChips" class="scenario-chips"></div>
+          <div class="scenario-card">
+            <p class="scenario-main"><strong id="scenarioTitle">—</strong></p>
+            <p class="scenario-subtitle" id="scenarioDescription">—</p>
+            <p class="scenario-expected"><span>Expected</span><strong id="scenarioExpected">—</strong></p>
+          </div>
+          <div class="scenario-actions">
+            <button type="button" id="loadScenario">Load</button>
+            <button type="button" id="runQuote">Quote</button>
+            <button type="button" id="runReserve">Reserve</button>
+            <button type="button" id="runFullFlow">▶ Run Full Flow</button>
+          </div>
+        </section>
+
         <article class="quote-calculator card">
           <h2>Quote Calculator</h2>
           <form id="quoteForm" class="grid two">
             <label>office_id <input name="office_id" required /></label>
             <label>input_mode
-              <select name="input_mode">
-                <option value="GIVE">GIVE</option>
-                <option value="GET">GET</option>
+              <input type="hidden" name="input_mode" value="GIVE" />
+              <div class="segmented" role="group" aria-label="Quote input mode">
+                <button type="button" id="quoteInputGive" class="segmented-btn active">Give</button>
+                <button type="button" id="quoteInputGet" class="segmented-btn">Get</button>
+              </div>
+            </label>
+            <label>give_currency_id
+              <select name="give_currency_id" required>
+                <option value="90000000-0000-0000-0000-000000000001">USDT (TRC20)</option>
+                <option value="90000000-0000-0000-0000-000000000002">THB Cash</option>
+                <option value="90000000-0000-0000-0000-000000000003">USD Cash</option>
+                <option value="90000000-0000-0000-0000-000000000004">BTC Mainnet</option>
               </select>
             </label>
-            <label>give_currency_id <input name="give_currency_id" required /></label>
-            <label>get_currency_id <input name="get_currency_id" required /></label>
+            <label>get_currency_id
+              <select name="get_currency_id" required>
+                <option value="90000000-0000-0000-0000-000000000002">THB Cash</option>
+                <option value="90000000-0000-0000-0000-000000000001">USDT (TRC20)</option>
+                <option value="90000000-0000-0000-0000-000000000003">USD Cash</option>
+                <option value="90000000-0000-0000-0000-000000000004">BTC Mainnet</option>
+              </select>
+            </label>
             <label>amount <input name="amount" required /></label>
             <label>selected scenario <input id="scenarioName" readonly /></label>
             <div class="actions full">
               <button type="submit">Calculate Quote</button>
-              <button type="button" id="copyQuoteId">Copy quote_id</button>
-              <button type="button" id="useQuoteInReserve">Use quote in Reserve</button>
+              <button type="button" id="copyQuoteId">⧉ Copy ID</button>
+              <button type="button" id="useQuoteInReserve">⇢ Use in Reserve</button>
             </div>
           </form>
         </article>
@@ -114,16 +146,16 @@
           </div>
           <div class="summary-grid">
             <p><span>quote_id</span><strong id="qQuoteId">—</strong></p>
-            <p><span>office</span><strong id="qOffice">—</strong></p>
-            <p><span>source_name</span><strong id="qSource">—</strong></p>
-            <p><span>base rate</span><strong id="qBaseRate">—</strong></p>
             <p><span>client rate</span><strong id="qFixedRate">—</strong></p>
             <p><span>fee</span><strong id="qFee">—</strong></p>
-            <p><span>applied rule</span><strong id="qRule">—</strong></p>
             <p><span>expires_at</span><strong id="qExpiresAt">—</strong></p>
-            <p><span>status</span><strong id="qStatus">—</strong></p>
-            <p><span>give</span><strong id="qGive">—</strong></p>
-            <p><span>get</span><strong id="qGet">—</strong></p>
+            <p class="secondary"><span>source_name</span><strong id="qSource">—</strong></p>
+            <p class="secondary"><span>applied rule</span><strong id="qRule">—</strong></p>
+            <p class="secondary"><span>office</span><strong id="qOffice">—</strong></p>
+            <p class="secondary"><span>base rate</span><strong id="qBaseRate">—</strong></p>
+            <p class="secondary"><span>status</span><strong id="qStatus">—</strong></p>
+            <p class="secondary"><span>give</span><strong id="qGive">—</strong></p>
+            <p class="secondary"><span>get</span><strong id="qGet">—</strong></p>
           </div>
         </article>
 
@@ -163,6 +195,10 @@
       <section class="right-column">
         <article class="order-operations card">
           <h2>Order Operations</h2>
+          <div class="segmented" role="group" aria-label="Order action">
+            <button type="button" id="orderModeComplete" class="segmented-btn active">Complete</button>
+            <button type="button" id="orderModeCancel" class="segmented-btn">Cancel</button>
+          </div>
           <div class="grid one">
             <form id="completeForm" class="grid one">
               <label>idempotency_key <input name="idempotency_key" value="idem-complete-001" required /></label>
@@ -171,7 +207,7 @@
               <label>cashier_id <input name="cashier_id" value="cashier_bkk_01" required /></label>
               <button type="submit">Complete</button>
             </form>
-            <form id="cancelForm" class="grid one">
+            <form id="cancelForm" class="grid one hidden">
               <label>idempotency_key <input name="idempotency_key" value="idem-cancel-001" required /></label>
               <label>order_id <input name="order_id" required /></label>
               <label>expected_version <input name="expected_version" type="number" value="1" min="0" required /></label>
@@ -187,14 +223,14 @@
             <span id="orderStatusBadge" class="status neutral">no order</span>
           </div>
           <div class="summary-grid">
-            <p><span>order_id</span><strong id="oOrderId">—</strong></p>
-            <p><span>order_ref</span><strong id="oOrderRef">—</strong></p>
             <p><span>status</span><strong id="oStatus">—</strong></p>
-            <p><span>version</span><strong id="oVersion">—</strong></p>
-            <p><span>expires_at</span><strong id="oExpiresAt">—</strong></p>
-            <p><span>quote status</span><strong id="oQuoteStatus">—</strong></p>
+            <p><span>order_id</span><strong id="oOrderId">—</strong></p>
             <p><span>held asset</span><strong id="oHeldCurrency">—</strong></p>
             <p><span>held amount</span><strong id="oHeldAmount">—</strong></p>
+            <p class="secondary"><span>order_ref</span><strong id="oOrderRef">—</strong></p>
+            <p class="secondary"><span>version</span><strong id="oVersion">—</strong></p>
+            <p class="secondary"><span>expires_at</span><strong id="oExpiresAt">—</strong></p>
+            <p class="secondary"><span>quote status</span><strong id="oQuoteStatus">—</strong></p>
           </div>
         </article>
 
@@ -216,7 +252,10 @@
         <article id="debugPanel" class="debug-response card">
           <h2>Debug / Raw Response</h2>
           <p id="statusBadge" class="status idle">idle</p>
-          <pre id="responseJson">{ "message": "Send a request to see JSON response" }</pre>
+          <details id="rawResponsePanel" class="collapsible">
+            <summary>Show raw JSON</summary>
+            <pre id="responseJson">{ "message": "Send a request to see JSON response" }</pre>
+          </details>
         </article>
       </section>
     </main>
@@ -232,9 +271,6 @@
     </footer>
 
     <script type="module" src="./app.js"></script>
-<<<<<<< HEAD
-=======
     <script type="module" src="./design.js"></script>
->>>>>>> 318ddf3 (Add React/Vite backoffice UI (backoffice-web-v2))
   </body>
 </html>

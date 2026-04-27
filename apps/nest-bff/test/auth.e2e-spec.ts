@@ -4,7 +4,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import request from 'supertest';
+import request = require('supertest');
 
 import { AuditService } from '../src/audit/audit.service';
 import { AuthController } from '../src/auth/auth.controller';
@@ -62,7 +62,7 @@ describe('AuthController (e2e)', () => {
       refresh_token: 'refresh-1',
       user: {
         id: 'u-1',
-        tenant_id: '11111111-1111-1111-1111-111111111111',
+        tenant_id: '11111111-1111-4111-8111-111111111111',
         office_id: null,
         role: 'owner',
         login: 'owner_demo',
@@ -73,7 +73,7 @@ describe('AuthController (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/auth/login')
       .send({
-        tenant_id: '11111111-1111-1111-1111-111111111111',
+        tenant_id: '11111111-1111-4111-8111-111111111111',
         login: 'owner_demo',
         password: 'owner_demo_password',
       })
@@ -96,7 +96,7 @@ describe('AuthController (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/auth/login')
       .send({
-        tenant_id: '11111111-1111-1111-1111-111111111111',
+        tenant_id: '11111111-1111-4111-8111-111111111111',
         login: 'owner_demo',
         password: 'wrong_password',
       })
@@ -118,7 +118,7 @@ describe('AuthController (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/auth/login')
       .send({
-        tenant_id: '11111111-1111-1111-1111-111111111111',
+        tenant_id: '11111111-1111-4111-8111-111111111111',
         login: 'owner_demo',
         password: 'owner_demo_password',
       })
@@ -133,7 +133,7 @@ describe('AuthController (e2e)', () => {
       refresh_token: 'refresh-next',
       user: {
         id: 'u-1',
-        tenant_id: '11111111-1111-1111-1111-111111111111',
+        tenant_id: '11111111-1111-4111-8111-111111111111',
         office_id: '22222222-2222-2222-2222-222222222222',
         role: 'manager',
         login: 'manager_demo',

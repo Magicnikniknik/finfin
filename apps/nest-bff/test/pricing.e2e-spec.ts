@@ -6,6 +6,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import type { NextFunction, Response } from 'express';
 import request = require('supertest');
 
 import { JwtAuthGuard } from '../src/auth/jwt-auth.guard';
@@ -31,6 +32,9 @@ describe('PricingController (e2e)', () => {
   const rolesGuardMock = { canActivate: jest.fn(() => true) };
 
   beforeAll(async () => {
+    jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockReturnValue(true as any);
+    jest.spyOn(RolesGuard.prototype, 'canActivate').mockReturnValue(true as any);
+
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [PricingController],
       providers: [
@@ -57,7 +61,7 @@ describe('PricingController (e2e)', () => {
       }),
     );
 
-    app.use((req: any, _res, next) => {
+    app.use((req: any, _res: Response, next: NextFunction) => {
       req.user = {
         sub: 'u-1',
         tenant_id: 'tenant-1',
@@ -75,6 +79,8 @@ describe('PricingController (e2e)', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    policyMock.ensureCanCalculateQuote.mockReset();
+    pricingServiceMock.calculate.mockReset();
   });
 
   afterAll(async () => {
